@@ -3,4 +3,3 @@
 [build]
   publish = "."
   command = ""
-  edge_functions = "."
