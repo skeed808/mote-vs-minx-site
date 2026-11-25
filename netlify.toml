@@ -1,0 +1,6 @@
+# Mote vs Minx site settings for Netlify.
+# Publishes the files as they are (no build step) and runs auth.js as the password gate.
+[build]
+  publish = "."
+  command = ""
+  edge_functions = "."
