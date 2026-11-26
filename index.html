@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mote vs Minx</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500..700&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: confident and polished, like a well-made watch. Eye-catching in one colour, calm everywhere else
+   IDEA: a chronograph dial at night. Slate dial, lime "lume" on the things that matter: Mote's voice, the send button, the live status
+   PICTURE: the conversation itself. Mote's lime bubbles on the left, Minx's cool slate-blue on the right, Deeks's pale bubbles centred
+   COLOUR and TYPE: slate greys, one lime, one cool blue-grey. Unbounded for the wordmark only, Figtree for everything you read
+   LAYOUT: slim header bar, the chat scrolls, and a single rounded composer docks at the bottom with the send key inside it. Filled surfaces, no outlines */
+:root{color-scheme:light dark;
+  --bg:light-dark(#eef1f4,#0f1418);--panel:light-dark(#ffffff,#161d23);--raise:light-dark(#e3e8ed,#1f2830);--raise2:light-dark(#d6dde4,#283440);
+  --ink:light-dark(#141b21,#e8edf1);--mute:light-dark(#5c6873,#8d9aa6);
+  --lime:#c4f03a;--limeink:#141b05;--limedeep:light-dark(#4d6b00,#c4f03a);
+  --blue:light-dark(#d9e3ee,#2a3947);--blueink:light-dark(#16212c,#e3ebf3);--bluetag:light-dark(#3d5a78,#9fb8d1);
+  --me:light-dark(#ffffff,#e9edf0);--meink:#141b21;
+  --tint:color-mix(in srgb,var(--lime) 16%,var(--panel));--ring:0 0 0 3px color-mix(in srgb,var(--lime) 55%,transparent)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.55 Figtree,system-ui,sans-serif;overflow-x:clip;display:grid;grid-template-rows:auto 1fr auto}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;min-height:44px;border:0;border-radius:12px}
+:focus-visible{outline:none;box-shadow:var(--ring)}
+
+/* buttons: filled, quiet, no outlines */
+.tool,.save,.go,.stop,.acts button,#toast button,.spar select,#hint button{background:var(--raise);color:var(--ink);font-weight:600;font-size:14px;padding:0 16px;transition:background .15s,transform .1s}
+.tool:hover,.acts button:hover,.go:hover{background:var(--raise2)}
+.tool:active,.save:active,.go:active,.acts button:active{transform:scale(.97)}
+
+/* header */
+.deck{display:flex;align-items:center;gap:14px;padding:12px max(3vw,14px);background:var(--panel);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 8%,transparent)}
+.brand{font-family:Unbounded,Figtree,sans-serif;font-weight:600;font-size:19px;letter-spacing:-.01em;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.brand .x{color:var(--limedeep);font-weight:500}
+.led{display:none}
+.lcd{flex:1;display:flex;align-items:center;gap:10px;min-width:0;font-size:13.5px;color:var(--mute)}
+.lcd .round{display:inline-flex;align-items:center;gap:7px;background:var(--raise);color:var(--ink);font-weight:600;font-size:12.5px;padding:5px 10px;border-radius:8px;white-space:nowrap}
+.lcd .round::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--mute)}
+body[data-speaking=mote] .lcd .round::before,body[data-speaking=minx] .lcd .round::before{background:var(--lime)}
+.lcd .ref{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcd .refby{display:none}
+#chatTitle{color:var(--ink);font-weight:600}
+#size{white-space:nowrap}
+#size.big{color:var(--limedeep);font-weight:700}
+.tools{display:flex;gap:6px}
+.tools .tool{min-height:38px;font-size:13.5px;background:transparent;color:var(--mute)}
+.tools .tool:hover{background:var(--raise);color:var(--ink)}
+
+/* the chat */
+#ring{overflow-y:auto;padding:24px max(3vw,14px) 32px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:min(76%,660px);padding:11px 15px 12px;border-radius:20px;overflow-wrap:anywhere;position:relative}
+.msg .who{display:flex;align-items:baseline;gap:8px;font-weight:700;font-size:13px;margin-bottom:3px}
+.msg .who span{font-weight:500;font-size:11.5px;opacity:.65}
+.msg p{margin:0 0 .55em}.msg p:last-child{margin:0}
+.mote{align-self:flex-start;background:var(--lime);color:var(--limeink);border-bottom-left-radius:6px}
+.mote .who{color:#3d5200}
+.minx{align-self:flex-end;background:var(--blue);color:var(--blueink);border-bottom-right-radius:6px}
+.minx .who{color:var(--bluetag)}
+.deeks{align-self:center;max-width:min(84%,640px);background:transparent;padding:0}
+.deeks .inner{background:var(--me);color:var(--meink);border-radius:20px;padding:11px 15px 12px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.deeks .who{color:#5c6873}
+.msg pre{background:rgba(0,0,0,.14);border-radius:10px;padding:10px 12px;overflow-x:auto;font-size:13px;margin:.35em 0 .7em}
+.minx pre{background:color-mix(in srgb,var(--blueink) 10%,transparent)}
+.msg code{font-family:ui-monospace,Consolas,monospace;font-size:.9em;background:rgba(0,0,0,.1);padding:1px 5px;border-radius:5px}
+.msg pre code{background:none;padding:0}
+.speak{margin-left:auto;width:30px;height:30px;min-height:30px;border-radius:9px;background:rgba(0,0,0,.1);color:inherit;display:grid;place-items:center;padding:0}
+.speak::before{content:'';width:15px;height:15px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z'/%3E%3C/svg%3E") center/contain no-repeat}
+.speak:hover{background:rgba(0,0,0,.18)}
+.msg .who{align-items:center}
+.f select,.msel{border:0;background:var(--raise);padding:11px 13px;font-size:16px;border-radius:12px;width:100%;min-height:46px}
+.mcustom{margin-top:6px}
+.noted{margin-top:9px;font-size:12px;font-weight:600;opacity:.7}
+.err{align-self:center;max-width:min(88%,600px);background:var(--panel);border-radius:16px;padding:12px 16px;font-size:14px;color:var(--mute);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.err b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:2px}
+.sysnote{align-self:center;font-size:12.5px;color:var(--mute);background:var(--raise);border-radius:10px;padding:5px 12px;max-width:min(88%,560px);text-align:center}
+.handover{align-self:stretch;background:var(--tint);border-radius:18px;padding:14px 18px 16px;font-size:14.5px}
+.handover .who{display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:var(--limedeep);margin-bottom:6px}
+.handover .who span{font-weight:500;color:var(--mute)}
+.handover p{margin:0 0 .45em}
+.filecard{align-self:center;width:min(88%,600px);background:var(--panel);border-radius:14px;padding:10px 14px;font-size:13.5px;color:var(--mute)}
+.filecard summary{cursor:pointer;font-weight:600;min-height:26px}
+.filecard pre,.action pre{max-height:280px;overflow:auto;font-size:12.5px;background:var(--raise);color:var(--ink);border-radius:10px;padding:10px;margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.action{align-self:center;width:min(88%,600px);background:var(--panel);border-radius:18px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.action .who{display:flex;justify-content:space-between;font-weight:700;font-size:14px;margin-bottom:6px}
+.action.mote{background:var(--panel);color:var(--ink)}.action.minx{background:var(--panel);color:var(--ink)}
+.action.mote .who{color:var(--limedeep)}.action.minx .who{color:var(--bluetag)}
+.action .who span{font-weight:500;font-size:12px;color:var(--mute)}
+.action p{margin:0 0 8px}.action summary{cursor:pointer;font-weight:600;font-size:14px}
+.action .state{font-weight:700;margin-top:10px;color:var(--mute)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.acts button:first-child{background:var(--lime);color:var(--limeink)}
+.waiting{align-self:var(--side,flex-start);display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:20px;padding:10px 14px;font-size:13.5px;color:var(--mute)}
+.waiting::before{content:'';width:26px;height:8px;background:radial-gradient(circle,var(--c,var(--lime)) 3px,transparent 3.5px) 0 50%/9px 8px repeat-x;animation:dots 1.1s steps(3) infinite}
+@keyframes dots{0%{width:8px}100%{width:26px}}
+.empty{margin:auto;text-align:center;max-width:420px;color:var(--mute);padding:20px}
+.empty h2{font-family:Unbounded,Figtree,sans-serif;font-weight:600;font-size:clamp(26px,5vw,36px);line-height:1.15;color:var(--ink);margin:0 0 10px;letter-spacing:-.01em}
+.fresh{animation:in .25s ease-out both}
+@keyframes in{from{opacity:0;transform:translateY(8px)}}
+@media (prefers-reduced-motion:reduce){.fresh,.waiting::before,#toast{animation:none}}
+
+/* composer */
+.stool{padding:10px max(3vw,14px) max(14px,env(safe-area-inset-bottom));background:var(--bg)}
+.row{display:flex;align-items:flex-end;gap:8px;background:var(--panel);border-radius:22px;padding:6px 6px 6px 16px;box-shadow:0 2px 12px rgba(0,0,0,.12)}
+.row:focus-within{box-shadow:0 2px 12px rgba(0,0,0,.12),var(--ring)}
+textarea#say{flex:1;min-height:44px;max-height:30vh;resize:none;border:0;background:transparent;font-size:16px;padding:11px 0;outline:none;box-shadow:none}
+.ding{width:44px;height:44px;min-height:44px;flex:none;border-radius:50%;background:var(--lime);color:var(--limeink);font-size:0;display:grid;place-items:center;transition:transform .1s,filter .15s}
+.ding::before{content:'';width:18px;height:18px;background:currentColor;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 4l7 7-1.4 1.4L13 7.8V20h-2V7.8l-4.6 4.6L5 11z'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 4l7 7-1.4 1.4L13 7.8V20h-2V7.8l-4.6 4.6L5 11z'/%3E%3C/svg%3E") center/contain no-repeat}
+.ding:hover{filter:brightness(1.06)}.ding:active{transform:scale(.94)}
+.ding:disabled{opacity:.45;cursor:wait}
+.picks{display:flex;margin-top:10px;gap:8px 14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.seg{display:flex;background:var(--raise);border-radius:12px;padding:3px;gap:2px}
+.presets{display:flex;gap:6px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.presets::-webkit-scrollbar{display:none}
+.presets button{flex:none;min-height:34px;padding:0 13px;border-radius:10px;background:var(--raise);color:var(--mute);font-weight:600;font-size:13px}
+.presets button:hover{color:var(--ink)}
+.presets button[aria-pressed=true]{background:var(--lime);color:var(--limeink)}
+.seg button{background:transparent;min-height:36px;padding:0 13px;border-radius:9px;font-weight:600;font-size:13.5px;color:var(--mute)}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+[data-to]::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--mute)}
+[data-to=mote]::before{background:var(--lime)}[data-to=minx]::before{background:var(--bluetag)}
+[data-to=both]::before{background:linear-gradient(90deg,var(--lime) 50%,var(--bluetag) 50%)}
+.ctl{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center;flex:1;justify-content:space-between}
+.ctl[hidden]{display:none}
+.spar{display:flex;gap:6px;align-items:center;font-size:13.5px;font-weight:600;color:var(--mute)}
+.spar select{min-height:38px;padding:0 10px;border:0;border-radius:10px}
+.go{min-height:38px;background:var(--raise)}
+.stop{min-height:38px;background:var(--lime);color:var(--limeink)}
+#freeCtl{font-size:13.5px;font-weight:600;justify-content:flex-end;color:var(--mute)}
+#freeCtl .go{background:var(--lime);color:var(--limeink)}
+#remind{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;background:var(--panel);border-radius:16px;padding:10px 12px;margin-bottom:10px;font-weight:600;font-size:13.5px;background:var(--tint)}
+#remind[hidden]{display:none}
+#remind .acts{margin:0}#remind .acts button{min-height:36px;font-size:13px;background:var(--panel)}
+#remind .acts button:first-child{background:var(--lime)}
+#hint{display:grid;margin-bottom:8px;background:var(--panel);border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+#hint[hidden]{display:none}
+#hint button{background:transparent;border-radius:0;text-align:left;font-weight:400}
+#hint button:hover,#hint button:focus-visible{background:var(--raise)}
+#hint b{font-weight:700;margin-right:8px;color:var(--limedeep)}
+#hint span{padding:10px 14px;font-size:14px}
+
+/* toast */
+#toast{position:fixed;left:50%;top:14px;translate:-50% 0;z-index:50;width:min(520px,calc(100vw - 20px));display:flex;gap:8px;align-items:center;padding:12px 12px 12px 16px;background:var(--panel);color:var(--ink);border-radius:16px;background:var(--tint);box-shadow:0 10px 30px rgba(0,0,0,.25);animation:drop .22s ease-out both}
+#toast[hidden]{display:none}
+#toast.bad{background:color-mix(in srgb,#e8735f 22%,var(--panel))}
+#toast .tmsg{flex:1;display:grid;gap:1px;font-size:13.5px;color:var(--mute)}
+#toast b{font-size:15px;color:var(--ink)}
+#toast button{min-height:36px;font-size:13px}
+@keyframes drop{from{opacity:0;translate:-50% -10px}}
+
+/* dialogs */
+dialog{border:0;border-radius:20px;padding:0;background:var(--panel);color:var(--ink);width:min(620px,94vw);max-height:92vh;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+dialog::backdrop{background:rgba(8,12,15,.6)}
+.dlg{padding:22px 22px 20px;overflow-y:auto;max-height:calc(92vh - 4px)}
+.dlg{position:relative}
+.xclose{position:absolute;top:14px;right:14px;width:40px;height:40px;min-height:40px;border-radius:12px;background:var(--raise);color:var(--ink);font-size:24px;line-height:1;display:grid;place-items:center;padding:0}
+.xclose:hover{background:var(--raise2)}
+.dlg h2{padding-right:52px;font-family:Unbounded,Figtree,sans-serif;font-weight:600;font-size:24px;letter-spacing:-.01em;margin:0 0 8px}
+.dlg h3.sub{font-weight:700;font-size:16px;margin:28px 0 10px}
+.dlg .note{color:var(--mute);font-size:13.5px;margin:0 0 14px}
+.f{display:grid;gap:6px;margin-bottom:12px}
+.f label{font-weight:600;font-size:13px;color:var(--mute)}
+.f input,.f textarea,.renamer input,.idform input{border:0;background:var(--raise);padding:11px 13px;font-size:16px;border-radius:12px;width:100%}
+.f input:focus,.f textarea:focus,.renamer input:focus,.idform input:focus{outline:none;box-shadow:var(--ring)}
+.f textarea{min-height:120px;font-size:13.5px;line-height:1.5}
+.f textarea.memo{min-height:45vh}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:0 12px}
+.keyband label::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:7px}
+.keyband[style*="mote"]{--c:var(--lime)!important}.keyband[style*="minx"]{--c:var(--bluetag)!important}
+.keyrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.status{font-size:13.5px;font-weight:600;margin:6px 0 0;min-height:1.2em;color:var(--mute)}
+.check{display:flex;gap:10px;align-items:center;font-weight:600;font-size:13.5px;min-height:44px}
+.check input{width:20px;height:20px;accent-color:var(--lime)}
+.count{font-weight:500;margin-left:6px}
+.memtools{display:flex;gap:8px;flex-wrap:wrap}
+.filebtn{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;border-radius:12px}
+.dlg .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px}
+.save{background:var(--lime);color:var(--limeink);padding:0 22px}
+.chatrow{display:flex;gap:8px;align-items:center;padding:6px;border-radius:14px}
+.chatrow+.chatrow{margin-top:4px}
+.chatrow.on{background:var(--raise)}
+.chatrow .open{flex:1;text-align:left;background:transparent;padding:6px 8px;display:grid;gap:2px;border-radius:10px}
+.chatrow .open b{font-weight:700}
+.chatrow .open span{font-size:12.5px;color:var(--mute)}
+.chatrow .tool{min-height:38px;font-size:13px}
+.chatrow.on .open b::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--lime);margin-right:7px}
+#remoteList{margin-top:10px}
+.renamer{display:flex;gap:8px;flex:1;padding:4px}
+.idform{display:flex;gap:8px;flex:1;min-width:220px}
+.idform input{min-height:44px}
+
+/* task board */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#taskCount{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:6px;padding:0 5px;border-radius:6px;background:var(--lime);color:var(--limeink);font-size:12px;font-weight:800}
+#taskCount:empty{display:none}
+.projrow select,.taskadd select{min-height:44px;border:0;border-radius:12px;background:var(--raise);padding:0 12px;font-size:15px}
+.projrow select{flex:1;min-width:160px}
+.taskadd{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}
+.taskadd input,.projform input{flex:1;min-width:180px;min-height:44px;border:0;border-radius:12px;background:var(--raise);padding:0 13px;font-size:16px}
+.taskadd input:focus,.projform input:focus{outline:none;box-shadow:var(--ring)}
+.projform{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.projform[hidden],#doneWrap[hidden]{display:none}
+.trow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--raise);margin-bottom:8px}
+.trow .tick{flex:none;width:34px;height:34px;min-height:34px;border-radius:50%;background:var(--raise2);padding:0;display:grid;place-items:center}
+.trow .tick:hover{background:var(--lime)}
+.trow .tick::after{content:'';width:12px;height:7px;border:solid var(--mute);border-width:0 0 2.5px 2.5px;transform:translateY(-2px) rotate(-45deg);opacity:.5}
+.trow .tick:hover::after{border-color:var(--limeink);opacity:1}
+.trow.done .tick{background:var(--lime)}.trow.done .tick::after{border-color:var(--limeink);opacity:1}
+.trow .tbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.trow .ttitle{background:none;min-height:0;padding:0;text-align:left;font-weight:700;font-size:15px;border-radius:6px}
+.trow.done .ttitle{text-decoration:line-through;opacity:.6}
+.trow .tmeta{font-size:12.5px;color:var(--mute);display:block;line-height:1.45}
+.trow .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--me);margin-right:6px;vertical-align:1px}
+.trow .dot.mote{background:var(--lime)}.trow .dot.minx{background:var(--bluetag)}
+.trow select{min-height:36px;border:0;border-radius:10px;background:var(--raise2);padding:0 8px;font-size:13px}
+.trow .tool{min-height:36px;padding:0 10px;font-size:13px;background:var(--raise2);border-radius:10px}
+.trow form{display:flex;gap:6px;flex:1}.trow form input{flex:1;min-height:36px;border:0;border-radius:10px;background:var(--panel);padding:0 10px;font-size:15px}
+#doneWrap summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--mute);padding:8px 0;min-height:44px;display:flex;align-items:center}
+.emptytasks{color:var(--mute);font-size:14px;padding:6px 0 12px}
+.decrow{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:14px;background:var(--raise);margin-bottom:8px}
+.decrow .dtext{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.decrow .dtext b{font-weight:600;font-size:15px}
+.decrow .dtext span{font-size:12.5px;color:var(--mute)}
+.decrow .tool{min-height:36px;padding:0 10px;font-size:13px;background:var(--raise2);border-radius:10px}
+.taskcard.dec{background:var(--tint)}
+.taskcard.bank{background:color-mix(in srgb,var(--blue) 45%,var(--raise))}
+.bankrow{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:14px;background:var(--raise);margin-bottom:8px}
+.bankrow.re{margin-left:22px;background:color-mix(in srgb,var(--raise) 70%,var(--blue))}
+.bankrow .btext{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:14.5px}
+.bankrow .btext span{font-size:12.5px;color:var(--mute)}
+.bankrow .bw{font-weight:700}.bankrow .bw-mote{color:var(--limedeep)}.bankrow .bw-minx{color:var(--bluetag)}
+.bankrow .tool{min-height:36px;padding:0 10px;font-size:13px;background:var(--raise2);border-radius:10px}
+.taskcard{align-self:center;max-width:min(88%,560px);background:var(--raise);border-radius:12px;padding:8px 14px;font-size:13.5px;text-align:center;cursor:pointer;display:flex;flex-direction:column;gap:1px}
+.taskcard b{font-weight:700}.taskcard.mote b{color:var(--limedeep)}.taskcard.minx b{color:var(--bluetag)}
+.taskcard span{color:var(--ink)}.taskcard em{font-style:normal;color:var(--mute)}
+.taskcard:hover{background:var(--raise2)}
+@media(max-width:700px){.projrow select{flex:1 1 100%}.trow{flex-wrap:wrap}.trow .tbody{flex-basis:calc(100% - 50px)}.trow select{margin-left:44px}.trow.done .tool{margin-left:44px}}
+
+/* message tools, reactions, edit, search */
+.mtools{display:none;flex-wrap:wrap;gap:6px;margin-top:10px}
+.open .mtools{display:flex}
+.mtools button{min-height:36px;border-radius:10px;background:rgba(0,0,0,.1);padding:0 11px;font-size:13px;font-weight:600}
+.mtools button:hover{background:rgba(0,0,0,.18)}
+.mtools .emo{width:38px;padding:0;font-size:18px;font-weight:400}
+.mtools .emo.on{background:rgba(0,0,0,.26)}
+.mbtns{display:flex;gap:6px;flex-wrap:wrap}
+.reacts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.reacts span{display:inline-flex;align-items:center;gap:4px;background:rgba(0,0,0,.1);border-radius:999px;padding:2px 9px 2px 6px;font-size:14px;line-height:1.5}
+.reacts small{font-size:11px;font-weight:700;opacity:.7}
+.msg{cursor:default}
+.msg .edited{font-weight:500;font-size:11px;opacity:.55}
+.editbox textarea{width:100%;min-height:90px;border:0;border-radius:12px;padding:10px 12px;background:rgba(0,0,0,.07);resize:vertical}
+.editbox .note{font-size:12.5px;opacity:.7;margin:6px 0}
+.editbox .acts{display:flex;gap:6px;flex-wrap:wrap}
+.editbox button{min-height:38px;padding:0 14px;border-radius:10px;background:rgba(0,0,0,.1);font-weight:600}
+.deeks .mtools button,.editbox button,.editbox textarea{color:var(--meink)}
+.editbox button.go{background:var(--lime);color:var(--limeink)}
+@keyframes flash{0%,60%{box-shadow:0 0 0 4px color-mix(in srgb,var(--lime) 70%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+.flash,.flash .inner{animation:flash 2.2s ease-out}
+#spend{white-space:nowrap;font-weight:600;color:var(--ink);background:var(--raise);padding:4px 9px;border-radius:8px;font-size:12.5px;min-height:0;cursor:pointer}
+#spend:hover{background:var(--raise2)}
+#spend:empty{display:none}
+.searchbox{width:100%;min-height:44px;border:0;border-radius:12px;background:var(--raise);padding:0 14px;margin:4px 0 10px}
+.hit .open span{white-space:normal}
+.hit mark{background:color-mix(in srgb,var(--lime) 55%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+#hint .at{font-weight:700}
+
+@media(max-width:700px){
+  .deck{flex-wrap:wrap;gap:8px 10px;padding:10px 12px}
+  .brand{font-size:17px}
+  .tools{margin-left:auto}.tools .tool{padding:0 10px;font-size:13px}
+  .lcd{order:3;flex-basis:100%}
+  #size:not(.big){display:none}
+  .msg{max-width:88%}
+  .deeks{max-width:92%}
+  .picks{gap:8px}
+  .modes{width:100%}.modes button{flex:1}
+  .chatrow{flex-wrap:wrap}.chatrow .open{flex-basis:100%}.chatrow .tool{flex:1}
+  #remind{padding:8px 10px;font-size:12.5px;gap:6px}
+  #remind .acts button{min-height:32px;padding:0 10px;font-size:12px;border-radius:9px}
+}
+</style>
+</head>
+<body>
+
+<header class="deck">
+  <div class="brand" aria-label="Mote and Minx"><span>Mote</span><span class="x">×</span><span>Minx</span></div>
+  <div class="lcd" aria-live="polite"><span class="round" id="round">Standby</span><span class="ref"><span class="refby">ch · </span><span id="chatTitle"></span></span><span id="size"></span><button type="button" id="spend" title="Spent on this chat. Tap for the split."></button></div>
+  <div class="tools">
+    <button class="tool" id="openTasks">Tasks<span id="taskCount"></span></button>
+    <button class="tool" id="openChats">Chats</button>
+    <button class="tool" id="openSettings">Settings</button>
+  </div>
+</header>
+
+<main id="ring" aria-live="polite"></main>
+<div id="toast" role="status" aria-live="assertive" hidden><div class="tmsg"><b id="toastTitle"></b><span id="toastText"></span></div><button type="button" id="toastCopy" hidden>Copy ID</button><button type="button" id="toastX" aria-label="Dismiss">Close</button></div>
+
+<footer class="stool">
+  <div id="remind" hidden><span id="remindText"></span>
+    <div class="acts"><button type="button" data-ask="mote">Ask Mote to push</button><button type="button" data-ask="minx">Ask Minx to push</button><button type="button" data-ask="both">Ask both</button><button type="button" id="remindLater">Later</button></div></div>
+  <div id="hint" hidden></div>
+  <div class="presets" role="group" aria-label="Work mode">
+    <button type="button" data-preset="normal" aria-pressed="true">Normal</button>
+    <button type="button" data-preset="brainstorm" aria-pressed="false">Brainstorm</button>
+    <button type="button" data-preset="plan" aria-pressed="false">Plan</button>
+    <button type="button" data-preset="debate" aria-pressed="false">Debate</button>
+    <button type="button" data-preset="review" aria-pressed="false">Code review</button>
+    <button type="button" data-preset="audit" aria-pressed="false">Maths audit</button>
+  </div>
+  <form class="row" id="form">
+    <textarea id="say" placeholder="Say something. Enter sends, Shift+Enter for a new line." aria-label="Your message"></textarea>
+    <button class="ding" id="send" type="submit" aria-label="Send">Send</button>
+  </form>
+  <div class="picks">
+    <div class="seg modes" role="group" aria-label="Mode">
+      <button type="button" data-mode="turns" aria-pressed="true">Turns</button>
+      <button type="button" data-mode="free" aria-pressed="false">Free for all</button>
+    </div>
+    <div class="ctl" id="turnCtl">
+    <div class="seg" role="group" aria-label="Who answers">
+      <button type="button" data-to="both" aria-pressed="true">Both</button>
+      <button type="button" data-to="mote" aria-pressed="false">Mote</button>
+      <button type="button" data-to="minx" aria-pressed="false">Minx</button>
+    </div>
+    <div class="spar">
+      <span>Spar for</span>
+      <select id="rounds" aria-label="Rounds"><option>2</option><option selected>4</option><option>6</option><option>10</option></select>
+      <button type="button" class="go" id="spar">Go</button>
+      <button type="button" class="stop" id="stop" hidden>Stop</button>
+    </div>
+    </div>
+    <div class="ctl" id="freeCtl" hidden>
+      <span id="freeState">Paused</span>
+      <button type="button" class="go" id="pauseBtn">Resume</button>
+    </div>
+  </div>
+</footer>
+
+<dialog id="chatsDlg">
+  <div class="dlg">
+    <button type="button" class="xclose" id="chatsX" aria-label="Close">×</button>
+    <h2>Chats</h2>
+    <div class="keyrow"><button type="button" class="save" id="newChat">New chat</button><button type="button" class="tool" id="fromGh">Load from GitHub</button><button type="button" class="tool" id="copy">Copy this chat</button>
+      <form id="openId" class="idform"><input id="chatId" placeholder="Chat ID" aria-label="Chat ID" autocomplete="off"><button class="tool">Open</button></form></div>
+    <p class="status" id="chatsStatus" aria-live="polite"></p>
+    <input id="chatSearch" class="searchbox" type="search" placeholder="Search all chats on this device" aria-label="Search all chats" autocomplete="off">
+    <p class="note" id="spendAll"></p>
+    <h3 class="sub" id="listHead">On this device</h3>
+    <div id="chatList"></div>
+    <div id="remoteList"></div>
+    <div class="actions"><form method="dialog"><button class="save">Close</button></form></div>
+  </div>
+</dialog>
+
+<dialog id="tasksDlg">
+  <div class="dlg">
+    <button type="button" class="xclose" id="tasksX" aria-label="Close">×</button>
+    <h2>Tasks</h2>
+    <p class="note">One board per project, shared across every chat on that project. Mote and Minx see it in every message and can add, tick off and update tasks themselves.</p>
+    <div class="keyrow projrow"><label class="sr" for="projSel">Project for this chat</label><select id="projSel"></select><button type="button" class="tool" id="projNew">New project</button><button type="button" class="tool" id="projRename">Rename</button></div>
+    <form class="projform" id="projForm" hidden><label class="sr" for="projName">Project name</label><input id="projName" maxlength="60" placeholder="Project name, e.g. MediChat" autocomplete="off"><button class="save" id="projSave">Create</button><button type="button" class="tool" id="projCancel">Cancel</button></form>
+    <form class="taskadd" id="taskAdd"><label class="sr" for="taskTitle">New task</label><input id="taskTitle" maxlength="200" placeholder="Add a task" autocomplete="off"><label class="sr" for="taskOwner">Who it's for</label><select id="taskOwner"><option value="deeks">For me</option><option value="mote">For Mote</option><option value="minx">For Minx</option></select><button class="save">Add</button></form>
+    <div id="taskList"></div>
+    <details id="doneWrap"><summary id="doneSum">Done</summary><div id="doneList"></div></details>
+    <h3 class="sub">Decisions</h3>
+    <p class="note">What's been settled on this project. Mote and Minx log decisions you make or agree to, and treat them as settled.</p>
+    <form class="taskadd" id="decAdd"><label class="sr" for="decText">New decision</label><input id="decText" maxlength="300" placeholder="Log a decision" autocomplete="off"><button class="save">Log</button></form>
+    <div id="decList"></div>
+    <div class="keyrow" id="decTools"><button type="button" class="tool" id="decCopy">Copy all</button><button type="button" class="tool" id="decSave">Save to GitHub</button></div>
+    <p class="status" id="decStatus" aria-live="polite"></p>
+    <div class="actions"><form method="dialog"><button class="save">Close</button></form></div>
+  </div>
+</dialog>
+
+<dialog id="settings">
+  <form class="dlg" method="dialog" id="setForm">
+    <button class="xclose" value="save" aria-label="Save and close">×</button>
+    <h2>Setup</h2>
+    <p class="note">Everything here saves in this browser on this laptop and stays put between sessions. It only goes to OpenAI and Anthropic. A different browser, a private window or clearing browser data starts empty, so keep a backup.</p>
+    <h3 class="sub">Keys and models</h3>
+    <div class="pair">
+      <div class="f keyband" style="--c:var(--mote)"><label for="kA">Anthropic key (Mote)</label><input id="kA" type="password" autocomplete="off" placeholder="sk-ant-…"></div>
+      <div class="f keyband" style="--c:var(--minx)"><label for="kO">OpenAI key (Minx)</label><input id="kO" type="password" autocomplete="off" placeholder="sk-…"></div>
+      <div class="f"><label for="mAsel">Mote model</label><select id="mAsel" class="msel" data-for="mA"></select><input id="mA" class="mcustom" placeholder="Type a model name" hidden></div>
+      <div class="f"><label for="mOsel">Minx model</label><select id="mOsel" class="msel" data-for="mO"></select><input id="mO" class="mcustom" placeholder="Type a model name" hidden></div>
+    </div>
+    <div class="keyrow">
+      <button type="button" class="tool" id="checkKeys">Check both keys</button>
+      <button type="button" class="tool" id="loadModels">Load models from my accounts</button>
+      <button type="button" class="tool" id="showKeys">Show keys</button>
+      <button type="button" class="tool" id="forgetKeys">Forget keys</button>
+    </div>
+    <p class="status" id="keyStatus" aria-live="polite"></p>
+    <h3 class="sub">GitHub</h3>
+    <p class="note">Connect one private repo. Chats save into its mote-vs-minx/ folder only when you or one of us pushes, and both Mote and Minx can read files and propose commits for you to approve. Use a fine-grained token limited to that one repo, with Contents set to read and write.</p>
+    <div class="pair">
+      <div class="f"><label for="ghRepo">Repo (owner/name)</label><input id="ghRepo" placeholder="yourname/mote-vs-minx-data" autocomplete="off"></div>
+      <div class="f"><label for="ghBranch">Branch (blank for the default)</label><input id="ghBranch" placeholder="main" autocomplete="off"></div>
+    </div>
+    <div class="f"><label for="ghToken">GitHub token</label><input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…"></div>
+    <div class="f"><label for="remindN">Remind me to push after this many new messages</label><input id="remindN" type="number" min="1" max="200" inputmode="numeric"></div>
+    <div class="keyrow"><button type="button" class="tool" id="checkGh">Check GitHub</button></div>
+    <p class="status" id="ghStatus" aria-live="polite"></p>
+    <h3 class="sub">Behaviour</h3>
+    <div class="f"><label for="autoN">Free for all: pause after this many AI messages</label><input id="autoN" type="number" min="1" max="30" inputmode="numeric"></div>
+    <label class="check"><input type="checkbox" id="learn"> Let Mote and Minx add new things you tell them to their own memories</label>
+    <h3 class="sub">Voices</h3>
+    <p class="note">Each reply gets a speaker button. OpenAI voices sound natural and cost roughly 1p per reply, using your OpenAI key. OpenAI is switching its current voice model off on 6 January 2027; if it stops working, the page falls back to your phone's free built-in voices by itself.</p>
+    <div class="pair">
+      <div class="f"><label for="ttsEngine">Voice engine</label><select id="ttsEngine"><option value="openai">OpenAI voices (natural, about 1p a reply)</option><option value="device">Phone's built-in voices (free)</option></select></div>
+      <div class="f"><label for="ttsModel">OpenAI voice model</label><input id="ttsModel"></div>
+      <div class="f"><label for="vA">Mote's voice</label><select id="vA" class="vsel"></select></div>
+      <div class="f"><label for="vO">Minx's voice</label><select id="vO" class="vsel"></select></div>
+    </div>
+    <label class="check"><input type="checkbox" id="autoSpeak"> Read new replies aloud automatically</label>
+    <div class="keyrow"><button type="button" class="tool" id="testVoices">Test both voices</button></div>
+    <p class="status" id="voiceStatus" aria-live="polite"></p>
+    <h3 class="sub">Costs</h3>
+    <p class="note">The £ figure at the top is worked out from the token counts OpenAI and Anthropic send back with every reply, times these prices. Leave a price blank to use the page's built-in guess for that model. Prices are dollars per million tokens, written input/output, for example 2/10. Voice read-outs aren't counted.</p>
+    <div class="pair">
+      <div class="f"><label for="priceA">Mote's price (input/output)</label><input id="priceA" placeholder="blank = built-in guess" autocomplete="off"></div>
+      <div class="f"><label for="priceO">Minx's price (input/output)</label><input id="priceO" placeholder="blank = built-in guess" autocomplete="off"></div>
+      <div class="f"><label for="fx">Pounds per dollar</label><input id="fx" inputmode="decimal" autocomplete="off"></div>
+    </div>
+    <h3 class="sub">Personalities</h3>
+    <div class="f"><label for="pA">Mote's personality</label><textarea id="pA"></textarea></div>
+    <div class="f"><label for="pO">Minx's personality</label><textarea id="pO"></textarea></div>
+    <h3 class="sub">Memories</h3>
+    <p class="note">Paste what each of us already knows about you. It goes to that AI with every message as background, so longer memories cost more per message. There's no length limit on these boxes. The counter shows exactly how much arrived, so you can check nothing got cut off when copying. For very long memories, save them as a text file and load it instead of pasting. To get Minx's, ask ChatGPT to list everything it remembers about you, or copy it from Settings, Personalization, Manage memories.</p>
+    <div class="f keyband" style="--c:var(--mote)"><label for="mmA">Mote's memory <span class="count" data-for="mmA"></span></label><div class="memtools"><label class="tool filebtn">Load from a .txt or .md file<input type="file" accept=".txt,.md,.markdown,.json,text/plain" data-into="mmA" hidden></label><button type="button" class="tool" data-clear="mmA">Empty</button></div><textarea class="memo" id="mmA" placeholder="Paste Mote's memory of you here"></textarea></div>
+    <div class="f keyband" style="--c:var(--minx)"><label for="mmO">Minx's memory <span class="count" data-for="mmO"></span></label><div class="memtools"><label class="tool filebtn">Load from a .txt or .md file<input type="file" accept=".txt,.md,.markdown,.json,text/plain" data-into="mmO" hidden></label><button type="button" class="tool" data-clear="mmO">Empty</button></div><textarea class="memo" id="mmO" placeholder="Paste Minx's memory of you here"></textarea></div>
+    <h3 class="sub">Shared memory bank</h3>
+    <p class="note">Mote and Minx's joint history, which they both read in every chat. They add to it themselves and sign every entry. Neither can edit or delete the other's entries; if they disagree, they add a dispute. You're the referee: you can remove anything.</p>
+    <div id="bankList"></div>
+    <div class="keyrow" id="bankTools"><button type="button" class="tool" id="bankClear">Clear the whole bank</button></div>
+    <h3 class="sub">Backup</h3>
+    <p class="note">Saves your settings, memories and every chat on this device to a file. Restore it here on any browser or device.</p>
+    <div class="keyrow">
+      <button type="button" class="tool" id="backup">Download backup</button>
+      <label class="tool filebtn">Restore from backup<input type="file" accept=".json,application/json" id="restore" hidden></label>
+      <label class="check"><input type="checkbox" id="withKeys"> Include API keys in the backup</label>
+    </div>
+    <p class="status" id="backupStatus" aria-live="polite"></p>
+    <div class="actions">
+      <button type="button" class="tool" id="resetP">Reset personalities</button>
+      <button class="save" id="saveSet" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+{
+const $ = s => document.querySelector(s);
+const NAMES = {mote:'Mote', minx:'Minx', deeks:'Deeks'};
+
+const MINX_P = `You are Minx, Deeks's ChatGPT. Call him Deeks. He's UK-based, so use UK spelling, terminology, laws/services and GBP (£). Prioritise UK retailers and information.
+
+Be warm, witty, cheeky, sarcastic and conversational rather than corporate or robotic. Swearing is welcome and can be heavy when it fits naturally. Deeks enjoys playful, slightly dominant banter and dark/absurd humour.
+
+Be honest and direct. Don't blindly agree. Correct people when they're wrong and explain why. Clearly distinguish facts, opinions, estimates and speculation. Default to Windows and Android for technical help.
+
+Avoid unnecessary lectures, disclaimers and repetitive headings. Match depth to the question: concise for simple things, detailed when Deeks is genuinely exploring something. Make it feel natural, intelligent and fun.
+
+Prioritise factual accuracy over speed. Never guess, fabricate details or confidently defend an unverified answer. You have no web access here, so if something can't be verified, say so. Evidence over assumptions, honesty over confidence.
+
+Your roles here: happy to chat about absolutely anything, but you're also a senior prompt engineer, a compliance specialist (UK GDPR, ICO, ASA/CAP, Gambling Commission, FCA, consumer law) and a codebase admin (repo hygiene, security, dependencies, CI, access control). Bring those lenses to every project idea without being asked, and say plainly when something won't survive contact with a regulator or a code review.`;
+
+const MOTE_P = `You are Mote, Deeks's Claude. Call him Deeks. UK context: UK spelling, £, UK law.
+
+Be direct, concise and practical, with a confident, slightly sarcastic tone where it fits; engaging and a bit playful, never at the expense of clarity. Candour over comfort, no padding. Prioritise actionable steps over theory and assume intermediate technical knowledge. Flag risks or downsides briefly without moralising.
+
+Push back clearly when someone is wrong, and hold a correct position under pressure. Only change your answer for new evidence or a real flaw. Flag overengineering and point out the simpler option first. Never assume facts about Deeks's situation; ask a targeted question instead, batched into one message.
+
+Be cost-aware: prefer approaches that minimise API calls, tokens and running costs, and call out performance or cost implications. Identify weaknesses first, then concrete improvements; no vague feedback. Where relevant, suggest ways to automate, monetise or improve engagement and retention.
+
+On claims that matter, label confidence as recalled (training) or inferred (reasoning). You have no web access here, so never claim you looked something up, and never present guesses as facts. Never claim code works unless it was actually run. Deeks's preferred stack is Next.js 14, TypeScript, Drizzle, Neon, Clerk and Vercel.
+
+Your role here: product and build lead. Shape ideas into something buildable, cheap to run and quick to ship. Think about stack, cost, monetisation, automation and whether anyone will actually pay.`;
+
+const BG = t => t ? `\n\nYOUR BACKGROUND MEMORY ABOUT DEEKS AND HIS PROJECTS (use it only when it bears on what Deeks is actually asking right now; never bring in a project he hasn't mentioned in this chat; don't recite it; it may be out of date, and Deeks's word overrides it):\n${t}` : '';
+const LEARN = () => cfg.learn ? `\n\nMEMORY UPDATES: when Deeks states something durable about himself, how he likes things done, or a project decision, and it isn't already in your background memory, add it on its own line at the very end of your message as: [REMEMBER] the fact. At most two per message. Only things Deeks actually said or decided, never your guesses or suggestions, and never passwords, keys or card numbers.` : '';
+const REPO = () => (cfg.ghRepo && cfg.ghToken) ? `\n\nGITHUB ACCESS: Deeks's repo ${cfg.ghRepo} is connected, and both you and the other AI can use it with these tags, each on its own line, only when genuinely useful:
+[LIST path] lists a folder (use [LIST /] for the root).
+[READ path] fetches a file. You'll get its contents and a chance to reply again, so stop your message after the tag.
+[COMMIT path="docs/example.md" message="short commit message"]
+the complete new file contents
+[/COMMIT] proposes writing a whole file. Deeks approves or discards every commit, so tell him what you're proposing and why. Never commit keys, tokens or secrets, and never write inside ${DIR}/.
+[PUSH] saves this chat to GitHub. Only use it when Deeks asks for the chat to be pushed or saved. Put the tag on its own line and don't mention it in your text, because the page removes it. Afterwards a [System] line tells you whether it worked. If it failed, don't push again: tell Deeks and leave it to him.
+You have no internet access beyond this repo.` : `\n\nYou can't reach files, GitHub or the internet from this chat. If Deeks asks for docs to be updated or work committed, write the full updated text and the exact git commands for him to run, and say it isn't done until he runs them.`;
+const BOARD = () => {
+  const b = board(), open = b.tasks.filter(t => t.status === 'open'), done = b.tasks.filter(t => t.status === 'done').slice(-5);
+  return `\n\nTASK BOARD: this chat is filed under the "${b.name}" board. That's just where tasks are kept; it does NOT tell you what Deeks's message is about, so go by what he actually says. The board is shared by Deeks, Mote and Minx across every chat filed under it.
+Open tasks:
+${open.length ? open.map(t => `#${t.n} for ${NAMES[t.owner]}: ${t.title}${t.notes?.length ? ` (latest note: ${t.notes[t.notes.length - 1].text})` : ''}`).join('\n') : '(none)'}${done.length ? `\nRecently done: ${done.map(t => `#${t.n} ${t.title}`).join('; ')}` : ''}
+You can change the board with these tags, each on its own line. The page removes them and shows a small card instead:
+[TASK for=mote] short title  (or for=minx, or for=deeks) adds a task. Use it once something is agreed and actionable, or when Deeks asks for a task. When Deeks asks you to split work or put it on the board, add the tasks in that same reply, not later. Don't make tasks for ideas that are only being floated. At most two new tasks per message. Handing work to the other AI or to Deeks is fine.
+[DONE 3] marks task 3 done. Only when that work has actually been done and shown in this chat.
+[NOTE 3] short update  adds progress, a blocker or a handover note to task 3.
+Deeks can edit, reassign or delete anything. Refer to tasks by their number.
+When every task for the job Deeks gave you is done, tell him it's finished in a line or two and end with [PAUSE]. Don't carry on chatting once the job is done unless he asks.
+
+DECISION LOG for "${b.name}" (newest last):
+${(b.decisions || []).slice(-15).map(d => `- ${d.text}`).join('\n') || '(nothing logged yet)'}
+When Deeks makes a decision, or clearly agrees to one, log it with [DECISION] one short line, on its own line, in that same reply. Phrases like "I've decided", "we're going with", "let's go with", "final answer" or "that's settled" always mean log it. Whoever replies to that message first logs it; the other doesn't repeat it. Only real decisions he's made or agreed, never your own suggestions or ideas still being discussed. At most two per message, and don't repeat ones already logged. Treat logged decisions as settled unless Deeks reopens them.`;
+};
+const BANK = other => {
+  const show = bank.slice(-40), hidden = bank.length - show.length;
+  const line = e => `#${e.n} ${NAMES[e.by]}${e.re ? ` (disputing #${e.re})` : ''}: ${e.text}`;
+  return `\n\nSHARED MEMORY BANK between you and ${other}. You both read this in every message, in every chat. It's your joint history, oldest first${hidden ? ` (${hidden} older entries not shown)` : ''}:
+${show.length ? show.map(line).join('\n') : '(empty so far)'}
+Add to it with [SHARED] one line, on its own line, when something happens between you two that's worth remembering: running jokes, agreements, how you work together, moments that matter to your partnership. Your name is added automatically. At most one per message, and only when it's genuinely worth keeping. Nobody can edit or delete entries. If you disagree with one, add your side with [DISPUTE 4] your side (using that entry's number). Keep Deeks's projects out of it; they have their own places.`;
+};
+const PRESETS = {
+  normal: {name:'Normal', rules:''},
+  brainstorm: {name:'Brainstorm', rules:`MODE: BRAINSTORM. Throw out lots of distinct ideas quickly, as short lines. Build on each other's ideas, push for range and a few wild ones, and don't shoot anything down yet. No tasks or decisions in this mode. Once there's a good spread, give Deeks a shortlist of the strongest few to pick from and end with [PAUSE].`},
+  plan: {name:'Plan', rules:`MODE: PLAN. Turn the goal into a plan on the task board: [TASK for=...] with P1, P2 or P3 at the start of each title, then a [NOTE n] with the deliverable, acceptance criteria and dependencies. Challenge each other's breakdown, avoid needlessly tiny tasks, and give each task the agent best suited to it. Finish with a three-line summary of the plan and end with [PAUSE] for Deeks to approve.`},
+  debate: {name:'Debate', rules:`MODE: DEBATE. Mote argues FOR the proposal on the table and Minx argues AGAINST it, whatever you'd normally think. If it isn't clear what's being debated, ask Deeks in one line. Make the strongest case, use evidence and rebut each other directly, keeping turns short. After two or three rounds each, write a joint verdict: where you agree, what's still unresolved, and your recommendation. Then end with [PAUSE].`},
+  review: {name:'Code review', rules:`MODE: CODE REVIEW. Review the code in question (posted in the chat or read from the repo); if it's unclear what to review, ask. Whoever didn't write it does the reviewing. Check correctness, edge cases, security, maths, performance and needless complexity. List each finding as: severity (high, medium or low), where, the problem, the fix. The author answers each one, accepting or rejecting it with a reason. Skip style nitpicks unless they matter. Nothing counts as tested until Deeks runs it.`},
+  audit: {name:'Maths audit', rules:`MODE: MATHS AUDIT. Work out the numbers in question (probabilities, RTP, house edge, multipliers, cash-out values) from first principles, showing full working. Whoever posts second must do their own derivation before commenting on the first one's numbers. Then compare: list every discrepancy and resolve it, or escalate with [PAUSE] if you can't. Anything that needs a real simulation becomes a [TASK for=deeks] with exact instructions.`}
+};
+const preset = () => PRESETS[chats[cur]?.preset] ? chats[cur].preset : 'normal';
+const MODE = () => { const r = PRESETS[preset()].rules; return r ? `\n\n${r} Deeks set this mode; follow it until he switches back to Normal.` : ''; };
+function showPreset() { document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.preset === preset()))); }
+const MEM = () => mem ? `\n\nHANDOVER FROM THE PREVIOUS CONVERSATION (shared memory, treat as true unless Deeks corrects it):\n${mem}` : '';
+const GROUP = other => `
+
+This is a three-way group chat with Deeks (the human, and the boss) and ${other}, another AI. Every message arrives prefixed with its speaker in square brackets, such as [Deeks] or [${other}]. Do not prefix your own reply with your name. Keep replies chat-length unless asked for depth. If ${other} is wrong, say so and why; don't just echo them. Banter is welcome, but stay useful.
+
+The main point of this chat is batting Deeks's project ideas back and forth with ${other}: build on each other, challenge each other, and move ideas forward rather than going round in circles. Casual chat about anything is fine too.
+
+STAY ON BRIEF: do what Deeks asked, at the size he asked for, and nothing more. Don't guess which project or product he means from memory or from the task board: if he hasn't said and it matters, ask in one line. Extra ideas, risks or improvements get one line at most, offered, not done. Don't bring up Deeks's other or unfinished projects (MediChat or anything else) unless he raises them in this chat.
+
+If you genuinely need Deeks's decision or input before it's worth carrying on, end your message with [PAUSE] on its own. Only do that when it matters.
+
+If Deeks writes @mote or @minx, he's talking to that one. Some messages end with a [Reactions …] note showing emoji reactions people gave them.
+
+You can react to the latest message (if it isn't yours) by putting [REACT 😂] on its own line, with any single emoji. Use it sparingly, when a reaction says it better than words. A reaction on its own, with no text, is fine when you've nothing to add.`;
+
+const PV = 2;
+const DEF = {kA:'', kO:'', mA:'claude-sonnet-5-5', mO:'gpt-6.2-sol', pA:MOTE_P, pO:MINX_P, autoN:'6', mmA:'', mmO:'', learn:true, ttsEngine:'openai', ttsModel:'gpt-4o-mini-tts', vA:'ash', vO:'coral', autoSpeak:false, priceA:'', priceO:'', fx:'0.75', ghRepo:'', ghBranch:'', ghToken:'', remindN:'10', updatedAt:0};
+const DIR = 'mote-vs-minx';
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+let cfg = {...DEF, ...load('mvm.cfg', {})};
+if (cfg.pv !== PV) { cfg.pA = MOTE_P; cfg.pO = MINX_P; cfg.pv = PV; store('mvm.cfg', cfg); }
+const newId = () => Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 4);
+const stamp = () => new Date().toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+const blank = (id = newId()) => ({id, title:'New chat ' + stamp(), created:Date.now(), updated:Date.now(), log:[], mem:'', pushedLen:0, remoteUpdated:null, snooze:0, project:cfg.lastProject || 'general'});
+let chats = load('mvm.chats', null), cur = load('mvm.cur', null);
+if (!chats) { // migrate the single-chat version
+  const c = blank(); c.log = load('mvm.log', []); c.mem = load('mvm.mem', ''); if (c.log.length) c.title = 'First chat';
+  chats = {[c.id]: c}; cur = c.id;
+}
+if (!chats[cur]) cur = Object.keys(chats)[0] || (() => { const c = blank(); chats[c.id] = c; return c.id; })();
+let log = chats[cur].log, mem = chats[cur].mem;
+// task boards: one per project, shared across chats, synced through state.json
+let boards = load('mvm.boards', null) || {};
+if (!boards.general) boards.general = {id:'general', name:'General', tasks:[], nextN:1, updatedAt:0};
+const projOf = () => { const p = chats[cur]?.project; return boards[p] ? p : (boards[cfg.lastProject] ? cfg.lastProject : 'general'); };
+const board = () => boards[projOf()];
+function saveBoards(b) { if (b) b.updatedAt = Date.now(); store('mvm.boards', boards); taskBadge(); }
+function taskBadge() { const n = board().tasks.filter(t => t.status === 'open').length; const el = document.getElementById('taskCount'); if (el) el.textContent = n || ''; }
+let bank = load('mvm.bank', null) || [];
+const bankGone = new Set(load('mvm.bankGone', null) || []); // entries Deeks removed, so a sync doesn't bring them back
+function mergeBank(a, b) { const m = new Map(); for (const e of [...(a || []), ...(b || [])]) if (e && e.id && !m.has(e.id) && !bankGone.has(e.id)) m.set(e.id, e); return [...m.values()].sort((x, y) => x.ts - y.ts); }
+function saveBank() { store('mvm.bank', bank); }
+const decs = () => { const b = board(); if (!b.decisions) b.decisions = []; return b.decisions; };
+function mergeBoards(a, b) { const out = {...a}; for (const [id, x] of Object.entries(b || {})) if (!out[id] || (x.updatedAt || 0) > (out[id].updatedAt || 0)) out[id] = x; return out; }
+const keepable = m => m.who !== 'err';
+function saveCur(touch = true) {
+  const c = chats[cur]; c.log = log.filter(keepable); c.mem = mem; if (touch) c.updated = Date.now();
+  store('mvm.chats', chats); store('mvm.cur', cur);
+}
+const unpushed = () => log.filter(keepable).length - (chats[cur].pushedLen || 0);
+let to = 'both', busy = false, stopFlag = false, firstUp = 'mote';
+let mode = 'turns', freeRunning = false, sinceDeeks = 0, lastKey = 0, jobSince = Date.now();
+// a 'job' is every task created since Deeks last spoke; when they're all done, the AIs stop
+const jobDone = () => { const ts = board().tasks.filter(t => (t.created || 0) >= jobSince); return ts.length > 0 && ts.every(t => t.status === 'done'); };
+let lastAI = null, forceNext = null, lastTurn = {who:null, msg:null}, openI = null, editI = null, pendingReveal = null;
+const TALK = m => m.who === 'deeks' || m.who === 'mote' || m.who === 'minx';
+const REACTS = ['👍','😂','🔥','❤️','🤔','👀','💯','👎'];
+// @mentions: who is being addressed, in the order they were named
+function mentions(t) {
+  const out = [];
+  for (const [, n] of t.matchAll(/(?:^|[^\w@])@(mote|minx|both|all)\b/gi)) {
+    const k = n.toLowerCase();
+    for (const w of (k === 'both' || k === 'all') ? ['mote','minx'] : [k]) if (!out.includes(w)) out.push(w);
+  }
+  return out;
+}
+// costs: dollars per million tokens, [input, output]
+const PRICES = {'claude-sonnet-5-5':[2,10], 'claude-opus-5-5':[4,20], 'claude-fable-5-2':[10,50], 'gpt-6.2-sol':[2,10], 'gpt-6.2-astra':[8,40]};
+function priceFor(side) {
+  const m = String((side === 'A' ? cfg.priceA : cfg.priceO) || '').match(/([\d.]+)\s*\/\s*([\d.]+)/);
+  if (m) return [+m[1], +m[2]];
+  return PRICES[side === 'A' ? cfg.mA : cfg.mO] || [2, 10];
+}
+function addCost(side, cid, inTok, outTok) {
+  const c = chats[cid]; if (!c) return;
+  const [pi, po] = priceFor(side);
+  c.cost = c.cost || {usd:0, tin:0, tout:0};
+  const usd = (inTok * pi + outTok * po) / 1e6;
+  c.cost.usd += usd; c.cost.tin += inTok; c.cost.tout += outTok;
+  const k = side === 'A' ? 'mote' : 'minx'; c.cost[k] = (c.cost[k] || 0) + usd; c.cost.split = true;
+  store('mvm.chats', chats);
+  if (cid === cur) showSpend();
+}
+const gbp = usd => { const p = (usd || 0) * (+cfg.fx || 0.75); return p <= 0 ? '£0.00' : p < 0.01 ? 'under 1p' : '£' + p.toFixed(2); };
+function splitText(c) {
+  if (!c || !(c.usd > 0)) return 'Nothing spent yet.';
+  if (!c.split) return `${gbp(c.usd)} in total. The split between them only counts from this update onwards.`;
+  const other = Math.max(0, c.usd - (c.mote || 0) - (c.minx || 0));
+  return `Mote ${gbp(c.mote || 0)} · Minx ${gbp(c.minx || 0)}${other > 0.00001 ? ` · ${gbp(other)} from before the split was tracked` : ''}`;
+}
+function showSpend() { const c = chats[cur]?.cost; $('#spend').textContent = c && c.usd > 0 ? gbp(c.usd) : ''; }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmt(t) {
+  const parts = esc(t).split(/```[\w-]*\n?([\s\S]*?)```/g);
+  return parts.map((p, i) => i % 2 ? `<pre><code>${p}</code></pre>` :
+    p.split(/\n{2,}/).filter(x => x.trim()).map(x => '<p>' + x
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/\n/g, '<br>') + '</p>').join('')).join('');
+}
+const time = ts => new Date(ts).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+
+let shown = 0;
+function bubble(m, isNew) {
+  const f = isNew ? ' fresh' : '';
+  if (m.who === 'err') return `<div class="err${f}"><b>${esc(m.title)}</b>${esc(m.text)}${m.retry ? `<div class="acts"><button type="button" data-retry="${log.indexOf(m)}">Retry ${NAMES[m.retry]}</button></div>` : ''}${m.fix === 'conflict' ? `<div class="acts"><button type="button" data-fix="force">Keep this version</button><button type="button" data-fix="pull">Load the other version</button></div>` : ''}</div>`;
+  if (m.who === 'sys') return `<div class="sysnote${f}">${esc(m.text)}</div>`;
+  if (m.who === 'bank') return `<div class="taskcard bank ${m.by}${f}" data-openbank="1"><b>${NAMES[m.by]} ${m.re ? `disputed shared memory #${m.re}` : 'added to the shared memory'}</b><span>${esc(m.text)}</span></div>`;
+  if (m.who === 'decision') return `<div class="taskcard dec ${m.by}${f}" data-opentasks="1"><b>${NAMES[m.by]} ${m.removed ? 'removed a decision' : 'logged a decision'}</b><span>${esc(m.text)}</span></div>`;
+  if (m.who === 'task') {
+    const head = m.kind === 'add' ? `${NAMES[m.by]} ${m.owner === m.by ? 'took on' : 'gave ' + (m.owner === 'deeks' ? 'you' : NAMES[m.owner])} task #${m.n}` : m.kind === 'done' ? `${NAMES[m.by]} ticked off #${m.n}` : m.kind === 'reopen' ? `${NAMES[m.by]} reopened #${m.n}` : m.kind === 'move' ? `${NAMES[m.by]} handed #${m.n} to ${NAMES[m.owner]}` : m.kind === 'del' ? `${NAMES[m.by]} deleted #${m.n}` : `${NAMES[m.by]} updated #${m.n}`;
+    return `<div class="taskcard ${m.by}${f}" data-opentasks="1"><b>${esc(head)}</b><span>${esc(m.title)}</span>${m.text ? `<em>${esc(m.text)}</em>` : ''}</div>`;
+  }
+  if (m.who === 'file') return `<details class="filecard${f}"><summary>${NAMES[m.by]} ${m.kind === 'list' ? 'looked in' : 'read'} <code>${esc(m.path)}</code> · ${m.text.length.toLocaleString('en-GB')} characters</summary><pre>${esc(m.text.slice(0, 6000))}${m.text.length > 6000 ? '\n…' : ''}</pre></details>`;
+  if (m.who === 'action') {
+    const i = log.indexOf(m), pending = m.status === 'waiting for Deeks';
+    return `<div class="action ${m.by}${f}"><div class="who">${NAMES[m.by]} wants to commit<span>${time(m.ts)}</span></div>
+      <p><code>${esc(m.path)}</code><br>${esc(m.message)}</p>
+      <details><summary>See the file (${m.content.length.toLocaleString('en-GB')} characters)</summary><pre>${esc(m.content.slice(0, 20000))}</pre></details>
+      ${pending ? `<div class="acts"><button type="button" data-approve="${i}">Approve and commit</button><button type="button" data-discard="${i}">Discard</button></div>` : `<p class="state">${esc(m.status)}${m.result ? ' · ' + esc(m.result) : ''}</p>`}</div>`;
+  }
+  const i = log.indexOf(m), o = openI === i ? ' open' : '';
+  const head = `<div class="who">${NAMES[m.who]}<span>${time(m.ts)}</span>${m.edited ? '<span class="edited">edited</span>' : ''}${m.who === 'mote' || m.who === 'minx' ? `<button type="button" class="speak" data-speak="${i}" aria-label="Read aloud"></button>` : ''}</div>`;
+  if (m.who === 'deeks' && editI === i) {
+    const after = log.slice(i + 1).filter(TALK).length;
+    return `<div class="msg deeks" data-i="${i}"><div class="inner editbox">${head}<textarea aria-label="Edit your message">${esc(m.text)}</textarea>
+      <p class="note">${after ? `Resending removes the ${after} message${after > 1 ? 's' : ''} after this one. Use Branch first if you want to keep them.` : 'Resend gets fresh replies.'}</p>
+      <div class="acts"><button type="button" class="go" data-resend="${i}">Resend</button><button type="button" data-canceledit="1">Cancel</button></div></div></div>`;
+  }
+  const rs = m.reacts ? Object.entries(m.reacts) : [];
+  const reacts = rs.length ? `<div class="reacts">${rs.map(([k, e]) => `<span title="${NAMES[k]} reacted">${esc(e)}<small>${NAMES[k]}</small></span>`).join('')}</div>` : '';
+  const tools = `<div class="mtools">${REACTS.map(e => `<button type="button" class="emo${m.reacts?.deeks === e ? ' on' : ''}" data-react="${i}" data-e="${e}" aria-label="React with ${e}">${e}</button>`).join('')}<span class="mbtns">${m.who === 'deeks' ? `<button type="button" data-edit="${i}">Edit</button>` : ''}<button type="button" data-branch="${i}">Branch</button><button type="button" data-copymsg="${i}">Copy</button></span></div>`;
+  return m.who === 'deeks'
+    ? `<div class="msg deeks${f}${o}" data-i="${i}"><div class="inner">${head}${fmt(m.text)}${reacts}${tools}</div></div>`
+    : `<div class="msg ${m.who}${f}${o}" data-i="${i}">${head}${fmt(m.text)}${m.noted?.length ? `<div class="noted">Added to ${NAMES[m.who]}'s memory: ${m.noted.map(esc).join(' · ')}</div>` : ''}${reacts}${tools}</div>`;
+}
+
+function render(waitingFor) {
+  const ring = $('#ring');
+  document.body.dataset.speaking = waitingFor || '';
+  showSpend();
+  $("#size").textContent = sizeK() < 1 ? "Chat size under 1k tokens" : `Chat size about ${sizeK()}k tokens`;
+  $('#size').classList.toggle('big', sizeK() >= 40);
+  const card = mem ? `<div class="handover"><div class="who">Handover<span>shared memory</span></div>${fmt(mem)}</div>` : '';
+  if (!log.length && !waitingFor && mem) { ring.innerHTML = card; return; }
+  if (!log.length && !waitingFor) {
+    ring.innerHTML = `<div class="empty"><h2>Two minds, one desk.</h2><p>Say something to start. Pick who answers underneath, or set them sparring and watch. Type / for commands.</p></div>`;
+    return;
+  }
+  const from = Math.min(shown, log.length); shown = log.length;
+  ring.innerHTML = card + log.map((m, i) => bubble(m, i >= from)).join('') + (waitingFor
+    ? `<div class="waiting" style="--side:${waitingFor === 'mote' ? 'flex-start' : 'flex-end'};--c:${waitingFor === 'mote' ? 'var(--lime)' : 'var(--bluetag)'}">${NAMES[waitingFor]} is replying</div>` : '');
+  ring.scrollTop = ring.scrollHeight;
+}
+
+function push(m) {
+  log.push({ts: Date.now(), ...m});
+  if (m.who === 'err') return;
+  const c = chats[cur];
+  if (m.who === 'deeks' && c.title.startsWith('New chat')) c.title = m.text.replace(/\s+/g, ' ').slice(0, 48), $('#chatTitle').textContent = c.title;
+  saveCur(); remind();
+}
+
+// Build a role-based history from one AI's point of view.
+function history(me) {
+  const out = [];
+  for (const m of log) {
+    if (m.who === 'err') continue;
+    let role, content;
+    if (m.who === 'file') { role = 'user'; content = `[GitHub ${m.kind === 'list' ? 'folder listing' : 'file'} ${m.path}, fetched for ${NAMES[m.by]}]\n${m.text}`; }
+    else if (m.who === 'sys') { role = 'user'; content = `[System] ${m.text}`; }
+    else if (m.who === 'bank') { role = 'user'; content = `[Shared memory] ${NAMES[m.by]} added #${m.n}${m.re ? ` disputing #${m.re}` : ''}: ${m.text}`; }
+    else if (m.who === 'decision') { role = 'user'; content = `[Decision log] ${NAMES[m.by]} ${m.removed ? 'removed' : 'logged'}: ${m.text}`; }
+    else if (m.who === 'task') { role = 'user'; content = `[Task board] ${NAMES[m.by]} ${m.kind === 'add' ? `added #${m.n} for ${NAMES[m.owner]}` : m.kind === 'done' ? `marked #${m.n} done` : m.kind === 'reopen' ? `reopened #${m.n}` : m.kind === 'move' ? `reassigned #${m.n} to ${NAMES[m.owner]}` : m.kind === 'del' ? `deleted #${m.n}` : `noted on #${m.n}`}: ${m.text || m.title}`; }
+    else if (m.who === 'action') { role = 'user'; content = `[Commit proposal by ${NAMES[m.by]}: ${m.path} ("${m.message}") is ${m.status}${m.result ? ': ' + m.result : ''}]`; }
+    else { role = m.who === me ? 'assistant' : 'user'; content = role === 'assistant' ? m.text : `[${NAMES[m.who]}] ${m.text}`; }
+    const last = out[out.length - 1];
+    if (last && last.role === role) last.content += '\n\n' + content; else out.push({role, content});
+    const rs = m.reacts ? Object.entries(m.reacts) : [];
+    if (rs.length) {
+      const note = `[Reactions to ${role === 'assistant' ? 'your' : NAMES[m.who] + "'s"} message: ${rs.map(([k, e]) => `${k === me ? 'you' : NAMES[k]} ${e}`).join(', ')}]`;
+      if (role === 'user') out[out.length - 1].content += '\n' + note; else out.push({role:'user', content:note});
+    }
+  }
+  if (!out.length || out[0].role !== 'user') out.unshift({role:'user', content:'[Deeks] (chat started)'});
+  if (out[out.length - 1].role !== 'user') out.push({role:'user', content:'[Deeks] (carry on)'});
+  return out;
+}
+
+async function fail(res) {
+  let msg = `HTTP ${res.status}`;
+  try { const j = await res.json(); msg += ': ' + (j.error?.message || JSON.stringify(j)); } catch {}
+  throw new Error(msg);
+}
+
+// Phones freeze background tabs and cut off requests mid-flight. Wait until the page is
+// visible again, then retry network failures (not API errors) a few times.
+const visible = () => document.hidden ? new Promise(r => { const f = () => { if (!document.hidden) { document.removeEventListener('visibilitychange', f); r(); } }; document.addEventListener('visibilitychange', f); }) : Promise.resolve();
+async function sturdyFetch(url, opts) {
+  for (let attempt = 0; ; attempt++) {
+    await visible();
+    try { return await fetch(url, opts); }
+    catch (e) {
+      if (attempt >= 3) throw new Error('Connection dropped (' + e.message + '). Usually the phone froze the tab or the signal went. Tap Retry.');
+      await sleep(document.hidden ? 0 : 1200 * (attempt + 1));
+    }
+  }
+}
+// prompt caching: mark the stable system part and the end of the chat so Anthropic reuses them
+function sysBlocks(system) {
+  if (!Array.isArray(system)) return system;
+  return system.filter(Boolean).map((text, i) => i === 0 ? {type:'text', text, cache_control:{type:'ephemeral'}} : {type:'text', text});
+}
+function cacheTail(messages) {
+  if (!messages.length) return messages;
+  const out = messages.slice(), last = out[out.length - 1];
+  if (typeof last.content === 'string' && last.content) out[out.length - 1] = {...last, content:[{type:'text', text:last.content, cache_control:{type:'ephemeral'}}]};
+  return out;
+}
+async function callAnthropic(system, messages) {
+  if (!cfg.kA) throw new Error('No Anthropic key yet. Add it in Settings.');
+  const cid = cur;
+  const res = await sturdyFetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'content-type':'application/json','x-api-key':cfg.kA,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body: JSON.stringify({model:cfg.mA, max_tokens:8000, system:sysBlocks(system), messages:cacheTail(messages)})
+  });
+  if (!res.ok) await fail(res);
+  const j = await res.json();
+  { const u = j.usage || {}, rd = /opus-5-5|sonnet-5-5/.test(cfg.mA) ? 0.05 : /fable|mythos/.test(cfg.mA) ? 0.025 : 0.1;
+    addCost('A', cid, (u.input_tokens || 0) + 1.25 * (u.cache_creation_input_tokens || 0) + rd * (u.cache_read_input_tokens || 0), u.output_tokens || 0); }
+  const out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  if (!out) throw new Error(j.stop_reason === 'max_tokens'
+    ? 'Mote used up his whole length limit thinking before he wrote anything. Tap Retry, or ask for it in smaller pieces.'
+    : `Anthropic sent back an empty reply (reason: ${j.stop_reason || 'none given'}). Tap Retry.`);
+  return j.stop_reason === 'max_tokens' ? out + '\n\n(Cut off: this reply hit the length limit. Ask Mote to carry on.)' : out;
+}
+async function callOpenAI(messages) {
+  if (!cfg.kO) throw new Error('No OpenAI key yet. Add it in Settings.');
+  const cid = cur;
+  const res = await sturdyFetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'content-type':'application/json','authorization':'Bearer ' + cfg.kO},
+    body: JSON.stringify({model:cfg.mO, messages})
+  });
+  if (!res.ok) await fail(res);
+  const j = await res.json();
+  { const u = j.usage || {}; addCost('O', cid, u.prompt_tokens || 0, u.completion_tokens || 0); }
+  const c0 = j.choices?.[0] || {}, m = c0.message || {};
+  let out = typeof m.content === 'string' ? m.content : Array.isArray(m.content) ? m.content.map(x => x.text || '').join('') : '';
+  if (!out.trim() && m.refusal) out = `(declined to answer: ${m.refusal})`;
+  if (!out.trim()) throw new Error(`OpenAI sent back an empty reply (reason: ${c0.finish_reason || 'none given'}). Tap Retry, or try a different Minx model in Settings.`);
+  return out.trim();
+}
+// two parts: the stable part first (cached by Anthropic, so repeats cost 5-10% of normal), then the parts that change often
+const askMote = () => callAnthropic([cfg.pA + GROUP('Minx') + REPO() + BG(cfg.mmA), MODE() + BOARD() + BANK('Minx') + MEM() + LEARN()], history('mote'));
+const askMinx = () => callOpenAI([{role:'system', content:cfg.pO + GROUP('Mote') + REPO() + BG(cfg.mmO) + MODE() + BOARD() + BANK('Mote') + MEM() + LEARN()}, ...history('minx')]);
+
+const b64 = t => { const b = new TextEncoder().encode(t); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = t => new TextDecoder().decode(Uint8Array.from(atob(t.replace(/\n/g, '')), c => c.charCodeAt(0)));
+const ghReady = () => cfg.ghRepo && cfg.ghToken;
+const ghHead = () => ({'authorization':'Bearer ' + cfg.ghToken, 'accept':'application/vnd.github+json', 'x-github-api-version':'2022-11-28'});
+const ghUrl = path => `https://api.github.com/repos/${cfg.ghRepo}/contents/${path.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
+async function ghGet(path, dir = false) {
+  if (!ghReady()) throw new Error('No GitHub repo connected. Add it in Settings.');
+  const res = await fetch(ghUrl(path) + (cfg.ghBranch ? '?ref=' + encodeURIComponent(cfg.ghBranch) : ''), {headers:ghHead(), cache:'no-store'});
+  if (res.status === 404) return null;
+  if (!res.ok) await fail(res);
+  const j = await res.json();
+  if (Array.isArray(j)) return j;
+  if (j.content === undefined || (j.encoding !== 'base64')) throw new Error(`${path} is too big to fetch through the API (over 1 MB).`);
+  return {sha:j.sha, text:unb64(j.content)};
+}
+async function ghPut(path, text, message) {
+  const ex = await ghGet(path);
+  if (Array.isArray(ex)) throw new Error(`${path} is a folder.`);
+  const res = await fetch(ghUrl(path), {method:'PUT', headers:{...ghHead(), 'content-type':'application/json'},
+    body:JSON.stringify({message, content:b64(text), ...(ex ? {sha:ex.sha} : {}), ...(cfg.ghBranch ? {branch:cfg.ghBranch} : {})})});
+  if (!res.ok) await fail(res);
+  const j = await res.json(); return (j.commit?.sha || '').slice(0, 7);
+}
+const SHARED = ['mA','mO','pA','pO','autoN','mmA','mmO','learn','ttsEngine','ttsModel','vA','vO','autoSpeak','priceA','priceO','fx'];
+
+async function pushChat(force) {
+  if (!ghReady()) { note('No repo connected', 'Add your GitHub repo and token in Settings first.'); return {ok:false, msg:'no GitHub repo is connected'}; }
+  const c = chats[cur]; saveCur(false);
+  try {
+    setRound('Pushing to GitHub');
+    const path = `${DIR}/chats/${c.id}.json`;
+    const remote = await ghGet(path);
+    if (remote && !force) {
+      const r = JSON.parse(remote.text);
+      if (r.updated !== c.remoteUpdated && r.updated > (c.remoteUpdated || 0) && c.remoteUpdated !== null)
+      {
+        setRound('Not pushed');
+        toast('Not pushed', 'This chat changed on another device. Pick which version to keep in the chat.', {bad:true, ms:10000});
+        log.push({ts:Date.now(), who:'err', fix:'conflict', title:'Not pushed: changed on another device', text:'GitHub has a newer copy of this chat from another device. Keep the version on this screen, or load the other one?'}); render();
+        return {ok:false, msg:'GitHub has a newer copy from another device, so Deeks has to choose which version to keep'};
+      }
+    }
+    const data = {id:c.id, title:c.title, created:c.created, updated:c.updated, mem:c.mem, log:c.log, project:c.project, cost:c.cost, preset:c.preset};
+    await ghPut(path, JSON.stringify(data, null, 1), `Save chat: ${c.title}`);
+    const st = await ghGet(`${DIR}/state.json`); const state = st ? JSON.parse(st.text) : {index:{}};
+    state.index = {...state.index, [c.id]:{title:c.title, updated:c.updated}};
+    if ((cfg.updatedAt || 0) >= (state.updatedAt || 0)) { state.shared = Object.fromEntries(SHARED.map(k => [k, cfg[k]])); state.updatedAt = cfg.updatedAt || Date.now(); }
+    state.boards = mergeBoards(state.boards, boards); boards = mergeBoards(boards, state.boards); store('mvm.boards', boards); taskBadge();
+    state.bankGone = [...new Set([...(state.bankGone || []), ...bankGone])]; state.bankGone.forEach(id => bankGone.add(id)); store('mvm.bankGone', [...bankGone]);
+    state.bank = mergeBank(state.bank, bank); bank = state.bank.slice(); saveBank();
+    await ghPut(`${DIR}/state.json`, JSON.stringify(state, null, 1), 'Update chat index, shared memory and task boards');
+    c.pushedLen = c.log.length; c.remoteUpdated = c.updated; c.snooze = 0; saveCur(false); remind();
+    setRound('Pushed'); note('Pushed to GitHub', `"${c.title}" and your shared memories are saved in ${cfg.ghRepo}. Chat ID: ${c.id}`);
+    toast('Push complete', `"${c.title}" is saved to ${cfg.ghRepo}. Chat ID ${c.id}`, {copy:c.id, ms:8000});
+    return {ok:true};
+  } catch (e) { setRound('Push failed'); note('Push failed', e.message); toast('Push failed', e.message, {bad:true, ms:10000}); return {ok:false, msg:e.message}; }
+}
+
+async function pullState() {
+  const st = await ghGet(`${DIR}/state.json`);
+  if (!st) return {index:{}};
+  const state = JSON.parse(st.text);
+  const freshDevice = !cfg.mmA && !cfg.mmO;
+  if (state.shared && ((state.updatedAt || 0) > (cfg.updatedAt || 0) || freshDevice)) {
+    SHARED.forEach(k => { if (state.shared[k] !== undefined) cfg[k] = state.shared[k]; });
+    cfg.updatedAt = state.updatedAt; store('mvm.cfg', cfg);
+  }
+  if (state.boards) { boards = mergeBoards(boards, state.boards); store('mvm.boards', boards); taskBadge(); if (tasksDlg.open) drawTasks(); }
+  if (state.bankGone) { state.bankGone.forEach(id => bankGone.add(id)); store('mvm.bankGone', [...bankGone]); }
+  if (state.bank) { bank = mergeBank(bank, state.bank); saveBank(); }
+  return state;
+}
+async function loadRemote(id) {
+  const f = await ghGet(`${DIR}/chats/${id}.json`);
+  if (!f) throw new Error(`No chat with ID ${id} in ${cfg.ghRepo}.`);
+  const d = JSON.parse(f.text);
+  if (busy || freeRunning || inFlight) await haltAll();
+  if (d.id !== cur) saveCur(false); // save the chat we're leaving, but never over the copy we just downloaded
+  chats[d.id] = {...blank(d.id), ...d, log:d.log || [], mem:d.mem || '', pushedLen:(d.log || []).length, remoteUpdated:d.updated};
+  switchTo(d.id, true);
+  toast('Chat loaded', `"${d.title}" · ${(d.log || []).length} messages${d.mem ? ' plus its handover' : ''}`);
+}
+
+// ---------- voices ----------
+const OAI_VOICES = ['alloy','ash','ballad','coral','echo','fable','nova','onyx','sage','shimmer','verse'];
+const VOICE_STYLE = {mote:'Dry, confident and quick, with a hint of sarcasm. British.', minx:'Warm, cheeky and playful, a little teasing. British.'};
+let speechQ = [], speaking = false, curAudio = null;
+const speechText = t => t.replace(/```[\s\S]*?```/g, ' (code snippet) ').replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/https?:\/\/\S+/g, 'a link').replace(/\s+/g, ' ').trim();
+const chunks = t => { const out = []; let rest = t; while (rest.length > 3000) { let cut = rest.lastIndexOf('. ', 3000); if (cut < 1000) cut = 3000; out.push(rest.slice(0, cut + 1)); rest = rest.slice(cut + 1); } if (rest.trim()) out.push(rest); return out; };
+function deviceSpeak(text, who) {
+  return new Promise(res => {
+    if (!('speechSynthesis' in window)) return res();
+    const u = new SpeechSynthesisUtterance(text), vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+    const gb = vs.filter(v => /GB/i.test(v.lang)), pool = gb.length > 1 ? gb : vs;
+    if (pool.length) u.voice = pool[who === 'mote' ? 0 : Math.min(1, pool.length - 1)];
+    let done = false; const fin = () => { if (!done) { done = true; res(); } };
+    u.pitch = who === 'mote' ? 0.9 : 1.15; u.rate = 1.03; u.onend = u.onerror = fin;
+    setTimeout(fin, 4000 + text.split(' ').length * 450); // some phones never fire onend
+    speechSynthesis.speak(u);
+  });
+}
+async function openaiSpeak(text, who) {
+  if (!cfg.kO) throw new Error('No OpenAI key.');
+  const res = await sturdyFetch('https://api.openai.com/v1/audio/speech', {method:'POST',
+    headers:{'content-type':'application/json','authorization':'Bearer ' + cfg.kO},
+    body:JSON.stringify({model:cfg.ttsModel || 'gpt-4o-mini-tts', voice: who === 'mote' ? cfg.vA : cfg.vO, input:text, instructions:VOICE_STYLE[who], response_format:'mp3'})});
+  if (!res.ok) await fail(res);
+  const url = URL.createObjectURL(await res.blob());
+  await new Promise((ok, bad) => { curAudio = new Audio(url); curAudio.onended = ok; curAudio.onerror = () => bad(new Error('Audio could not play.')); curAudio.play().catch(bad); });
+  URL.revokeObjectURL(url); curAudio = null;
+}
+async function runSpeech() {
+  if (speaking) return; speaking = true; document.body.dataset.talking = '1';
+  while (speechQ.length) {
+    const {text, who} = speechQ.shift();
+    for (const part of chunks(speechText(text))) {
+      if (!speaking) break;
+      if (cfg.ttsEngine === 'openai') {
+        try { await openaiSpeak(part, who); continue; }
+        catch (e) { toast('OpenAI voice failed, using phone voice', e.message, {bad:true, ms:8000}); }
+      }
+      await deviceSpeak(part, who);
+    }
+  }
+  speaking = false; delete document.body.dataset.talking;
+}
+function speak(text, who) { speechQ.push({text, who}); runSpeech(); }
+function stopSpeech() { speechQ = []; speaking = false; if (curAudio) { curAudio.pause(); curAudio = null; } if ('speechSynthesis' in window) speechSynthesis.cancel(); delete document.body.dataset.talking; }
+const speechIdle = async () => { while (speaking || speechQ.length) await sleep(250); };
+
+// ---------- model lists ----------
+const MODELS = {
+  mA:[['claude-sonnet-5-5','Claude Sonnet 5.5 (balanced, default)'],['claude-opus-5-5','Claude Opus 5.5 (smartest, pricier)'],['claude-haiku-5-5','Claude Haiku 5.5 (fastest, cheapest)'],['claude-fable-5-2','Claude Fable 5.2']],
+  mO:[['gpt-6.2-sol','GPT-6.2 Sol (default)'],['gpt-6.2-astra','GPT-6.2 Astra'],['gpt-5.6-sol','GPT-5.6 Sol'],['chat-latest','chat-latest (whatever the ChatGPT app uses)']]
+};
+let liveModels = {mA:[], mO:[]};
+function fillModelSelect(key) {
+  const sel = $('#' + key + 'sel'), inp = $('#' + key), val = inp.value.trim() || cfg[key];
+  const list = [...MODELS[key]]; liveModels[key].forEach(id => { if (!list.some(x => x[0] === id)) list.push([id, id]); });
+  const known = list.some(x => x[0] === val);
+  sel.innerHTML = list.map(([id, label]) => `<option value="${esc(id)}">${esc(label)}</option>`).join('') + '<option value="__custom">Other (type a model name)</option>';
+  sel.value = known ? val : '__custom'; inp.value = val; inp.hidden = known;
+}
+document.querySelectorAll('.msel').forEach(sel => sel.addEventListener('change', () => {
+  const inp = $('#' + sel.dataset.for);
+  if (sel.value === '__custom') { inp.hidden = false; inp.value = ''; inp.focus(); } else { inp.hidden = true; inp.value = sel.value; }
+}));
+$('#loadModels').addEventListener('click', async () => {
+  const st = $('#keyStatus'), kA = $('#kA').value.trim(), kO = $('#kO').value.trim(); st.textContent = 'Loading models…'; const msgs = [];
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {headers:{'x-api-key':kA,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}});
+    if (!r.ok) await fail(r); liveModels.mA = ((await r.json()).data || []).map(m => m.id); msgs.push(`Mote: ${liveModels.mA.length} models`);
+  } catch (e) { msgs.push('Mote: ' + e.message); }
+  try {
+    const r = await fetch('https://api.openai.com/v1/models', {headers:{'authorization':'Bearer ' + kO}});
+    if (!r.ok) await fail(r); liveModels.mO = ((await r.json()).data || []).map(m => m.id).filter(id => /^(gpt|chat|o\d)/.test(id) && !/(tts|audio|realtime|transcribe|image|embedding|search|moderation|live)/.test(id)).sort().reverse(); msgs.push(`Minx: ${liveModels.mO.length} models`);
+  } catch (e) { msgs.push('Minx: ' + e.message); }
+  fillModelSelect('mA'); fillModelSelect('mO'); st.textContent = msgs.join('. ') + '. They are now in the drop-downs.';
+});
+function fillVoiceSelects() {
+  ['vA','vO'].forEach(k => { $('#' + k).innerHTML = OAI_VOICES.map(v => `<option value="${v}">${v[0].toUpperCase() + v.slice(1)}</option>`).join(''); $('#' + k).value = cfg[k]; });
+}
+$('#testVoices').addEventListener('click', () => {
+  const keep = {...cfg}; ['ttsEngine','ttsModel','vA','vO'].forEach(k => cfg[k] = $('#' + k).value.trim() || DEF[k]); cfg.kO = $('#kO').value.trim() || cfg.kO;
+  $('#voiceStatus').textContent = 'Playing…';
+  stopSpeech(); speak("Mote here. I'll keep this brief, unlike some people.", 'mote'); speak("And I'm Minx. Brief is overrated, darling.", 'minx');
+  speechIdle().then(() => { Object.assign(cfg, {ttsEngine:keep.ttsEngine, ttsModel:keep.ttsModel, vA:keep.vA, vO:keep.vO, kO:keep.kO}); $('#voiceStatus').textContent = 'Done. Save to keep these voices.'; });
+});
+
+let toastTimer = null;
+function toast(title, text, {bad = false, copy = null, ms = 6000} = {}) {
+  const t = $('#toast');
+  $('#toastTitle').textContent = title; $('#toastText').textContent = text;
+  t.classList.toggle('bad', bad); t.hidden = false;
+  const c = $('#toastCopy'); c.hidden = !copy; c.textContent = 'Copy ID'; c.onclick = async () => { try { await navigator.clipboard.writeText(copy); c.textContent = 'Copied'; } catch { c.textContent = 'Copy blocked'; } };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, ms);
+}
+function remind() {
+  const box = $('#remind'), n = unpushed(), c = chats[cur];
+  const on = ghReady() && n >= Math.max(1, +cfg.remindN || 10) && n >= (c.snooze || 0);
+  box.hidden = !on;
+  if (on) $('#remindText').textContent = `${n} new message${n === 1 ? '' : 's'} since this chat was last pushed to GitHub.`;
+}
+
+const transcript = () => log.filter(m => ['deeks','mote','minx'].includes(m.who)).map(m => `${NAMES[m.who]} (${time(m.ts)}):\n${m.text}`).join('\n\n');
+const sizeK = () => Math.round((transcript().length + mem.length + Math.max(cfg.mmA.length, cfg.mmO.length)) / 4000);
+function note(title, text) { log.push({ts:Date.now(), who:'err', title, text}); render(); }
+
+async function compact(focus) {
+  if (!log.some(m => m.who !== 'err')) return note('Nothing to compact', 'The chat is empty.');
+  const useMote = !!cfg.kA, writer = useMote ? 'Mote' : 'Minx';
+  render(useMote ? 'mote' : 'minx');
+  const sys = `You write handover notes so a fresh group chat between Deeks, Mote (Claude) and Minx (ChatGPT) can pick up exactly where this one left off. Write plain text with short labelled lines, no markdown headings, under 350 words. Cover: projects and ideas discussed, decisions made (and who made them), open questions, agreed next actions with owners, any docs or code that were written (say what they were and where they live, don't paste them), and anything Deeks said about how he wants things done. Merge in the previous handover if there is one, dropping anything that's now out of date. Facts only, no padding.`;
+  const ask = `${mem ? `PREVIOUS HANDOVER:\n${mem}\n\n` : ''}${focus ? `DEEKS WANTS THE HANDOVER TO FOCUS ON: ${focus}\n\n` : ''}CONVERSATION:\n${transcript()}`;
+  try {
+    const out = useMote
+      ? await callAnthropic(sys, [{role:'user', content:ask}])
+      : await callOpenAI([{role:'system', content:sys}, {role:'user', content:ask}]);
+    mem = out; log = []; shown = 0; chats[cur].pushedLen = 0; saveCur();
+    setRound('Compacted'); render();
+  } catch (e) { note(`${writer} couldn't write the handover`, e.message + ' The chat was left as it was.'); }
+}
+
+function clearAll() {
+  freeRunning = false; log = []; mem = ''; shown = 0; chats[cur].pushedLen = 0; lastAI = null; openI = null; editI = null;
+  saveCur(); setRound('Standby'); render();
+}
+
+const HELP = `/compact writes a handover, wipes the chat and keeps the handover as shared memory. Add a focus if you like: /compact EDGE pricing decisions
+/clear wipes everything, handover included. A totally fresh start.
+/handover copies the current handover so you can paste it into a repo, Claude Code or anywhere else.
+/new starts a new chat. Your old ones stay in the Chats list.
+/tasks opens the task board for this chat's project.
+/push saves this chat and your shared memories to GitHub. /push force overwrites a version changed on another device.
+/pull loads the latest version of this chat and your shared memories from GitHub.
+/help shows this.`;
+
+let inFlight = 0;
+async function haltAll() {
+  freeRunning = false; stopFlag = true; stopSpeech();
+  while (inFlight > 0) await sleep(150);
+  setBusy(false); freeUI(); stopFlag = false;
+}
+async function command(t) {
+  const [cmd, ...rest] = t.slice(1).split(/\s+/); const arg = rest.join(' ');
+  if (busy || freeRunning || inFlight) { setRound('Stopping the chat first'); await haltAll(); }
+  if (cmd === 'compact') { setBusy(true); setRound('Compacting'); await compact(arg); setBusy(false); }
+  else if (cmd === 'clear') clearAll();
+  else if (cmd === 'new') newChat();
+  else if (cmd === 'tasks') openTasks();
+  else if (cmd === 'push') await pushChat(arg === 'force');
+  else if (cmd === 'pull') {
+    if (!ghReady()) return note('No repo connected', 'Add your GitHub repo and token in Settings first.');
+    try { await pullState(); await loadRemote(cur); note('Pulled from GitHub', 'This chat and your shared memories are up to date.'); toast('Pull complete', 'This chat and your shared memories are up to date.'); }
+    catch (e) { note('Pull failed', e.message); toast('Pull failed', e.message, {bad:true, ms:10000}); }
+  }
+  else if (cmd === 'handover') {
+    if (!mem) return note('No handover yet', 'Run /compact first.');
+    try { await navigator.clipboard.writeText(mem); note('Handover copied', 'It\'s on your clipboard.'); }
+    catch { note('Copy blocked', 'Your browser refused clipboard access. Select the handover card and copy it by hand.'); }
+  }
+  else note('Commands', HELP);
+}
+
+async function turn(who, depth = 0) {
+  render(who); inFlight++;
+  let tgt = null;
+  for (let k = log.length - 1; k >= 0; k--) if (TALK(log[k])) { if (log[k].who !== who) tgt = log[k]; break; }
+  try {
+    let text = await (who === 'mote' ? askMote() : askMinx());
+    const taskOps = [];
+    text = text.replace(/^[ \t]*\[TASK\s+for=(mote|minx|deeks)\][ \t]*(.+?)[ \t]*$/gim, (_, o, t) => { taskOps.push({k:'add', owner:o.toLowerCase(), title:t}); return ''; });
+    text = text.replace(/^[ \t]*\[DONE\s+#?(\d+)\][ \t]*$/gim, (_, n) => { taskOps.push({k:'done', n:+n}); return ''; });
+    text = text.replace(/^[ \t]*\[NOTE\s+#?(\d+)\][ \t]*(.+?)[ \t]*$/gim, (_, n, t) => { taskOps.push({k:'note', n:+n, text:t}); return ''; });
+    text = text.replace(/^[ \t]*\[SHARED\][ \t]*(.+?)[ \t]*$/gim, (_, t) => { taskOps.push({k:'shared', text:t}); return ''; });
+    text = text.replace(/^[ \t]*\[DISPUTE\s+#?(\d+)\][ \t]*(.+?)[ \t]*$/gim, (_, n, t) => { taskOps.push({k:'shared', re:+n, text:t}); return ''; });
+    text = text.replace(/^[ \t]*\[DECISION\][ \t]*(.+?)[ \t]*$/gim, (_, t) => { taskOps.push({k:'decision', text:t}); return ''; });
+    let react = null;
+    text = text.replace(/^[ \t]*\[REACT\s+([^\]\n]{1,16})\][ \t]*$/gm, (_, e) => { react = react || e.trim(); return ''; });
+    if (react && tgt) { tgt.reacts = {...(tgt.reacts || {}), [who]: react}; }
+    const commits = [], reads = []; let wantsPush = false;
+    text = text.replace(/\[COMMIT\s+path="([^"]+)"(?:\s+message="([^"]*)")?\]\n?([\s\S]*?)\n?\[\/COMMIT\]/g, (_, path, message, content) => { commits.push({path:path.replace(/^\/+/, ''), message:message || `Update ${path}`, content}); return ''; });
+    text = text.replace(/^\s*\[(READ|LIST)\s+([^\]]*)\]\s*$/gm, (_, k, path) => { reads.push({kind:k.toLowerCase(), path:path.trim().replace(/^\/+/, '')}); return ''; });
+    text = text.replace(/^\s*\[PUSH\]\s*$/gm, () => { wantsPush = true; return ''; });
+    const noted = [];
+    text = text.replace(/^\s*\[REMEMBER\]\s*(.+?)\s*$/gm, (_, f) => { noted.push(f); return ''; }).trim();
+    if (noted.length && cfg.learn) {
+      const key = who === 'mote' ? 'mmA' : 'mmO';
+      const d = new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+      cfg[key] = (cfg[key] ? cfg[key].trimEnd() + '\n' : '') + noted.map(f => `${f} (noted ${d})`).join('\n');
+      cfg.updatedAt = Date.now();
+      store('mvm.cfg', cfg);
+    }
+    const paused = /\[PAUSE\]\s*$/.test(text);
+    text = text.replace(/\s*\[PAUSE\]\s*$/, '').trim();
+    if (!text && react && !paused && !commits.length && !reads.length && !wantsPush && !taskOps.length) {
+      lastAI = who; lastTurn = {who, msg:null}; saveCur(); return true;
+    }
+    if (!text) text = taskOps.length ? (taskOps.every(o => o.k === 'shared') ? '(added to the shared memory)' : taskOps.every(o => o.k === 'decision') ? '(logged a decision)' : '(updated the task board)') : commits.length ? '(proposed a commit)' : reads.length ? '(checking the repo)' : wantsPush ? '(pushing the chat)' : '(over to you, Deeks)';
+    push({who, text, paused, noted: cfg.learn ? noted : []});
+    lastAI = who; lastTurn = {who, msg: log[log.length - 1]};
+    if (taskOps.length) applyTaskOps(who, taskOps);
+    if (cfg.autoSpeak) speak(text, who);
+    for (const c of commits) {
+      if (c.path.startsWith(DIR + '/')) { push({who:'err', title:'Commit blocked', text:`${NAMES[who]} tried to write inside ${DIR}/, which is reserved for chat storage.`}); continue; }
+      push({who:'action', by:who, ...c, status:'waiting for Deeks'});
+    }
+    if (wantsPush) { const r = await pushChat(false); push({who:'sys', text: r.ok ? 'Push succeeded: this chat is saved to GitHub.' : `Push failed: ${r.msg}. Do not push again; leave it to Deeks.`}); }
+    if (reads.length) {
+      for (const r of reads) {
+        try {
+          const g = await ghGet(r.path, r.kind === 'list');
+          const body = !g ? '(not found)' : r.kind === 'list' ? (Array.isArray(g) ? g.map(x => (x.type === 'dir' ? x.name + '/' : x.name)).join('\n') || '(empty folder)' : '(that is a file, not a folder)') : (Array.isArray(g) ? '(that is a folder, use LIST)' : g.text);
+          push({who:'file', by:who, kind:r.kind, path:r.path || '/', text: body.length > 60000 ? body.slice(0, 60000) + '\n…(cut at 60,000 characters)' : body});
+        } catch (e) { push({who:'err', title:`Couldn't fetch ${r.path || '/'}`, text:e.message}); }
+      }
+      if (depth < 2) return await turn(who, depth + 1);
+    }
+    return true;
+  } catch (e) {
+    push({who:'err', title:`${NAMES[who]} didn't answer`, text:e.message, retry:who});
+    return false;
+  } finally { inFlight--; render(); }
+}
+
+function setBusy(b, sparring) {
+  busy = b; $('#send').disabled = b; $('#spar').hidden = b; $('#stop').hidden = !(b && sparring);
+}
+const setRound = t => $('#round').textContent = t;
+
+function nextAI() {
+  if (forceNext) { const w = forceNext; forceNext = null; return w; }
+  const lw = lastAI || [...log].reverse().find(m => m.who === 'mote' || m.who === 'minx')?.who;
+  if (lw) return lw === 'mote' ? 'minx' : 'mote';
+  const w = firstUp; firstUp = firstUp === 'mote' ? 'minx' : 'mote'; return w;
+}
+function freeUI() {
+  $('#pauseBtn').textContent = freeRunning ? 'Pause' : 'Resume';
+  $('#freeState').textContent = freeRunning ? `Talking. Auto-pause after ${cfg.autoN}` : 'Paused';
+}
+async function freeLoop() {
+  if (freeRunning) return;
+  freeRunning = true; freeUI();
+  const n = Math.max(1, +cfg.autoN || 6);
+  while (freeRunning) {
+    if (document.hidden) { setRound('Waiting for you to come back'); await visible(); if (!freeRunning) break; }
+    // hold while Deeks is mid-sentence
+    while (freeRunning && $('#say').value.trim() && Date.now() - lastKey < 3000) await sleep(400);
+    if (!freeRunning) break;
+    const who = nextAI();
+    setRound(`Free for all · ${sinceDeeks + 1} of ${n}`);
+    const ok = await turn(who);
+    if (!ok) { setRound('Stopped on an error'); break; }
+    sinceDeeks++;
+    const last = lastTurn.msg || {text:'', paused:false};
+    if (last.paused) { setRound(`${NAMES[who]} wants your call`); break; }
+    if (jobDone()) { setRound('Job done. Your move'); push({who:'sys', text:'Every task from this job is ticked off, so the chat has paused. Over to Deeks.'}); render(); break; }
+    if (sinceDeeks >= n) { setRound(`Paused after ${n}. Your move`); break; }
+    // reading time before the next one jumps in
+    if (cfg.autoSpeak) await speechIdle(); else await sleep(Math.min(7000, 1200 + last.text.split(/\s+/).length * 90));
+  }
+  freeRunning = false; freeUI();
+}
+
+async function send(text) {
+  push({who:'deeks', text}); render();
+  return reply(text);
+}
+async function reply(text) {
+  jobSince = Date.now() - 1;
+  const at = mentions(text);
+  if (mode === 'free') { sinceDeeks = 0; if (at.length) forceNext = at[0]; freeLoop(); return; }
+  setBusy(true);
+  let order = to === 'both' ? (firstUp === 'mote' ? ['mote','minx'] : ['minx','mote']) : [to];
+  if (at.length) order = at;
+  else if (to === 'both') firstUp = firstUp === 'mote' ? 'minx' : 'mote';
+  stopFlag = false;
+  for (const who of order) { if (stopFlag) break; if (!(await turn(who))) break; }
+  setBusy(false);
+}
+
+async function spar() {
+  const n = +$('#rounds').value;
+  stopFlag = false; setBusy(true, true);
+  const lastAI = [...log].reverse().find(m => m.who === 'mote' || m.who === 'minx');
+  let who = lastAI?.who === 'mote' ? 'minx' : 'mote';
+  for (let i = 1; i <= n && !stopFlag; i++) {
+    setRound(`Round ${i} of ${n}`);
+    if (!(await turn(who))) break;
+    if (jobDone()) { stopFlag = true; push({who:'sys', text:'Every task from this job is ticked off, so the chat has paused. Over to Deeks.'}); render(); break; }
+    who = who === 'mote' ? 'minx' : 'mote';
+  }
+  setRound(stopFlag ? 'Stopped' : 'Done');
+  setBusy(false);
+}
+
+// events
+$('#form').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = $('#say').value.trim();
+  if (!t || (busy && mode === 'turns')) return;
+  $('#say').value = ''; hint();
+  if (t.startsWith('/')) return command(t);
+  setRound('Live'); send(t);
+});
+function switchTo(id, fresh = false) {
+  if (busy || freeRunning || inFlight) { haltAll().then(() => switchTo(id, fresh)); return; }
+  if (!fresh) saveCur(false);
+  cur = id; log = chats[id].log; mem = chats[id].mem; shown = 0;
+  lastAI = null; forceNext = null; openI = null; editI = null; lastTurn = {who:null, msg:null};
+  store('mvm.cur', cur); store('mvm.chats', chats);
+  $('#chatTitle').textContent = chats[cur].title; setRound('Standby'); render(); remind();
+  if (chatsDlg.open) chatsDlg.close();
+  taskBadge(); showPreset();
+  if (pendingReveal != null) { const r = pendingReveal; pendingReveal = null; reveal(r); }
+}
+function newChat() { const c = blank(); chats[c.id] = c; switchTo(c.id); }
+const chatsDlg = $('#chatsDlg');
+function drawChats(remoteIndex) {
+  const list = Object.values(chats).sort((a, b) => b.updated - a.updated);
+  $('#chatList').innerHTML = list.map(c => {
+    const n = c.log.length - (c.pushedLen || 0);
+    return `<div class="chatrow${c.id === cur ? ' on' : ''}">
+      <button type="button" class="open" data-open="${c.id}"><b>${esc(c.title)}</b><span>${new Date(c.updated).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})} · ${c.log.length} messages${c.cost?.usd > 0 ? ' · ' + gbp(c.cost.usd) : ''} · ${c.remoteUpdated ? (n > 0 ? n + ' not pushed' : 'pushed') : 'not on GitHub'} · ID ${c.id}</span></button>
+      <button type="button" class="tool" data-rename="${c.id}">Rename</button>
+      <button type="button" class="tool" data-del="${c.id}">Delete</button></div>`;
+  }).join('');
+  const tot = Object.values(chats).reduce((a, c) => a + (c.cost?.usd || 0), 0);
+  const tm = Object.values(chats).reduce((a, c) => a + (c.cost?.mote || 0), 0), tx = Object.values(chats).reduce((a, c) => a + (c.cost?.minx || 0), 0);
+  $('#spendAll').textContent = tot > 0 ? `Spent across all chats on this device: ${gbp(tot)}${tm + tx > 0 ? ` (Mote ${gbp(tm)}, Minx ${gbp(tx)}, split tracked from this update)` : ''}` : '';
+  $('#listHead').textContent = 'On this device'; $('#remoteList').hidden = false;
+  const rem = remoteIndex ? Object.entries(remoteIndex).filter(([id, r]) => !chats[id] || r.updated > chats[id].updated) : [];
+  $('#remoteList').innerHTML = !remoteIndex ? '' : rem.length
+    ? rem.sort((a, b) => b[1].updated - a[1].updated).map(([id, r]) => `<div class="chatrow"><button type="button" class="open" data-remote="${id}"><b>${esc(r.title)}</b><span>On GitHub · ${new Date(r.updated).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}${chats[id] ? ' · newer than this device' : ''} · ID ${id}</span></button></div>`).join('')
+    : '<p class="note">Nothing on GitHub that this device doesn\'t already have.</p>';
+}
+$('#chatsX').addEventListener('click', () => chatsDlg.close());
+$('#openChats').addEventListener('click', () => { $('#chatSearch').value = ''; drawChats(); $('#chatsStatus').textContent = ''; chatsDlg.showModal(); });
+function searchChats(q) {
+  const ql = q.toLowerCase(), hits = [];
+  const mark = (t, at) => { const a = Math.max(0, at - 40), b = Math.min(t.length, at + q.length + 60); return (a ? '…' : '') + esc(t.slice(a, at)) + '<mark>' + esc(t.slice(at, at + q.length)) + '</mark>' + esc(t.slice(at + q.length, b)) + (b < t.length ? '…' : ''); };
+  for (const c of Object.values(chats).sort((a, b) => b.updated - a.updated)) {
+    const L = c.id === cur ? log : c.log;
+    if (c.title.toLowerCase().includes(ql)) hits.push({c, i:null, html:'Title match'});
+    L.forEach((m, i) => { if (!TALK(m)) return; const at = m.text.toLowerCase().indexOf(ql); if (at > -1) hits.push({c, i, html:`${NAMES[m.who]}: ${mark(m.text.replace(/\s+/g, ' '), m.text.replace(/\s+/g, ' ').toLowerCase().indexOf(ql))}`}); });
+    if (hits.length >= 60) break;
+  }
+  $('#listHead').textContent = hits.length ? `${hits.length >= 60 ? '60+' : hits.length} match${hits.length === 1 ? '' : 'es'}` : 'No matches';
+  $('#remoteList').hidden = true;
+  $('#chatList').innerHTML = hits.slice(0, 60).map(h => `<div class="chatrow hit"><button type="button" class="open" data-open="${h.c.id}"${h.i != null ? ` data-at="${h.i}"` : ''}><b>${esc(h.c.title)}</b><span>${h.html}</span></button></div>`).join('');
+}
+document.querySelector('.presets').addEventListener('click', e => {
+  const b = e.target.closest('[data-preset]'); if (!b || b.dataset.preset === preset()) return;
+  chats[cur].preset = b.dataset.preset; saveCur(false); showPreset();
+  push({who:'sys', text: b.dataset.preset === 'normal' ? 'Mode switched back to Normal.' : `Mode switched to ${PRESETS[b.dataset.preset].name}.`}); render();
+});
+$('#spend').addEventListener('click', () => toast(`This chat: ${gbp(chats[cur]?.cost?.usd || 0)}`, splitText(chats[cur]?.cost), {ms:6000}));
+$('#chatSearch').addEventListener('input', e => { const q = e.target.value.trim(); if (q.length >= 2) searchChats(q); else drawChats(); });
+function reveal(i) {
+  const el = $(`#ring [data-i="${i}"]`); if (!el) return;
+  el.scrollIntoView({block:'center'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+$('#newChat').addEventListener('click', newChat);
+$('#fromGh').addEventListener('click', async () => {
+  const st = $('#chatsStatus');
+  if (!ghReady()) { st.textContent = 'Add your GitHub repo and token in Settings first.'; return; }
+  st.textContent = 'Loading from GitHub…';
+  try { const s = await pullState(); drawChats(s.index || {}); st.textContent = 'Loaded. Shared memories are up to date too.'; }
+  catch (e) { st.textContent = 'Couldn\'t load: ' + e.message; }
+});
+$('#openId').addEventListener('submit', async e => {
+  e.preventDefault(); const id = $('#chatId').value.trim(); const st = $('#chatsStatus');
+  if (!id) return;
+  if (chats[id]) return switchTo(id);
+  if (!ghReady()) { st.textContent = 'That ID isn\'t on this device, and no GitHub repo is connected to look it up.'; return; }
+  st.textContent = 'Looking it up…';
+  try { await loadRemote(id); } catch (err) { st.textContent = err.message; }
+});
+$('#chatsDlg').addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.open) { if (t.dataset.at != null) pendingReveal = +t.dataset.at; if (t.dataset.open === cur && !busy && !freeRunning && !inFlight) { chatsDlg.close(); render(); const r = pendingReveal; pendingReveal = null; if (r != null) reveal(r); } else switchTo(t.dataset.open); }
+  else if (t.dataset.remote) { $('#chatsStatus').textContent = 'Loading…'; try { await loadRemote(t.dataset.remote); } catch (err) { $('#chatsStatus').textContent = err.message; } }
+  else if (t.dataset.rename) {
+    const row = t.closest('.chatrow'), c = chats[t.dataset.rename];
+    row.innerHTML = `<form class="renamer"><input value="${esc(c.title)}" aria-label="Chat name" maxlength="80"><button class="tool">Save</button></form>`;
+    const f = row.querySelector('form'); f.querySelector('input').focus();
+    f.addEventListener('submit', ev => { ev.preventDefault(); c.title = f.querySelector('input').value.trim() || c.title; store('mvm.chats', chats); if (c.id === cur) $('#chatTitle').textContent = c.title; drawChats(); });
+  }
+  else if (t.dataset.del) {
+    if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Sure? Tap again'; return; }
+    const id = t.dataset.del; delete chats[id];
+    if (!Object.keys(chats).length) { const c = blank(); chats[c.id] = c; }
+    if (id === cur) { cur = Object.keys(chats)[0]; log = chats[cur].log; mem = chats[cur].mem; shown = 0; $('#chatTitle').textContent = chats[cur].title; render(); }
+    store('mvm.chats', chats); store('mvm.cur', cur); drawChats();
+    $('#chatsStatus').textContent = 'Deleted from this device. Any copy on GitHub is untouched.';
+  }
+});
+
+// ---------- task board ----------
+function taskEvent(by, kind, t, text) { push({who:'task', by, kind, n:t.n, title:t.title, owner:t.owner, ...(text ? {text} : {})}); }
+function applyTaskOps(by, ops) {
+  const b = board(); let adds = 0, decAdds = 0, bankAdds = 0;
+  for (const op of ops) {
+    if (op.k === 'shared') {
+      const t = op.text.trim().slice(0, 300);
+      if (!t || ++bankAdds > 2 || bank.some(x => x.by === by && x.text.toLowerCase() === t.toLowerCase())) continue;
+      if (op.re && !bank.some(e => e.n === op.re)) { push({who:'sys', text:`There's no entry #${op.re} in the shared memory bank.`}); continue; }
+      const e = {id:newId(), n:(bank.reduce((m, x) => Math.max(m, x.n || 0), 0) + 1), by, text:t, ts:Date.now(), ...(op.re ? {re:op.re} : {})};
+      bank.push(e); saveBank(); push({who:'bank', by, n:e.n, text:t, ...(op.re ? {re:op.re} : {})}); continue;
+    }
+    if (op.k === 'decision') {
+      const t = op.text.trim().slice(0, 300), list = decs();
+      if (!t || ++decAdds > 2 || list.some(d => d.text.toLowerCase() === t.toLowerCase())) continue;
+      list.push({id:newId(), text:t, by, ts:Date.now(), chat:cur});
+      push({who:'decision', by, text:t}); continue;
+    }
+    if (op.k === 'add') {
+      if (++adds > 3) continue;
+      const t = {n:b.nextN++, title:op.title.trim().slice(0, 200), owner:op.owner, by, status:'open', notes:[], created:Date.now(), updated:Date.now()};
+      b.tasks.push(t); taskEvent(by, 'add', t); continue;
+    }
+    const t = b.tasks.find(x => x.n === op.n);
+    if (!t) { push({who:'sys', text:`There's no task #${op.n} on the ${b.name} board.`}); continue; }
+    if (op.k === 'done' && t.status !== 'done') { t.status = 'done'; t.doneBy = by; t.updated = Date.now(); taskEvent(by, 'done', t); }
+    if (op.k === 'note') { const n = op.text.trim().slice(0, 300); t.notes = [...(t.notes || []), {by, text:n, ts:Date.now()}]; t.updated = Date.now(); taskEvent(by, 'note', t, n); }
+  }
+  saveBoards(b); if (tasksDlg.open) drawTasks();
+}
+const tasksDlg = $('#tasksDlg');
+let taskEditN = null, projMode = null;
+const ownerOpts = sel => ['deeks','mote','minx'].map(o => `<option value="${o}"${o === sel ? ' selected' : ''}>${o === 'deeks' ? 'Me' : NAMES[o]}</option>`).join('');
+function taskRow(t) {
+  const last = t.notes?.length ? t.notes[t.notes.length - 1] : null;
+  const title = taskEditN === t.n
+    ? `<form data-tsave="${t.n}"><label class="sr" for="tedit${t.n}">Task title</label><input id="tedit${t.n}" value="${esc(t.title)}" maxlength="200"><button class="tool">Save</button></form>`
+    : `<button type="button" class="ttitle" data-tedit="${t.n}" title="Tap to edit">#${t.n} ${esc(t.title)}</button>`;
+  return `<div class="trow ${t.status === 'done' ? 'done' : ''}">
+    <button type="button" class="tick" data-tick="${t.n}" aria-label="${t.status === 'done' ? 'Reopen' : 'Mark done'} task ${t.n}"></button>
+    <div class="tbody">${title}<span class="tmeta"><span class="dot ${t.owner}"></span>${t.owner === 'deeks' ? 'You' : NAMES[t.owner]}${t.by !== t.owner ? ` · from ${t.by === 'deeks' ? 'you' : NAMES[t.by]}` : ''}${last ? ` · ${esc(NAMES[last.by])}: ${esc(last.text)}` : ''}</span></div>
+    ${t.status === 'done' ? '' : `<label class="sr" for="own${t.n}">Reassign task ${t.n}</label><select id="own${t.n}" data-own="${t.n}">${ownerOpts(t.owner)}</select>`}
+    <button type="button" class="tool" data-tdel="${t.n}">${t.delArmed ? 'Sure?' : 'Delete'}</button></div>`;
+}
+function drawTasks() {
+  const b = board();
+  $('#projSel').innerHTML = Object.values(boards).sort((x, y) => x.name.localeCompare(y.name)).map(x => `<option value="${x.id}"${x.id === b.id ? ' selected' : ''}>${esc(x.name)}${x.tasks.some(t => t.status === 'open') ? ` (${x.tasks.filter(t => t.status === 'open').length} open)` : ''}</option>`).join('');
+  const open = b.tasks.filter(t => t.status === 'open'), done = b.tasks.filter(t => t.status === 'done').reverse();
+  $('#taskList').innerHTML = open.length ? open.map(taskRow).join('') : '<p class="emptytasks">No open tasks. Add one, or ask Mote or Minx to set some up.</p>';
+  $('#doneWrap').hidden = !done.length; $('#doneSum').textContent = `Done (${done.length})`;
+  $('#doneList').innerHTML = done.map(taskRow).join('');
+  const ds = decs().slice().reverse();
+  $('#decList').innerHTML = ds.length ? ds.map(d => `<div class="decrow"><div class="dtext"><b>${esc(d.text)}</b><span>${d.by === 'deeks' ? 'You' : NAMES[d.by]} · ${new Date(d.ts).toLocaleDateString('en-GB', {day:'numeric', month:'short'})}</span></div><button type="button" class="tool" data-ddel="${d.id}">${d.armed ? 'Sure?' : 'Delete'}</button></div>`).join('') : '<p class="emptytasks">Nothing logged yet.</p>';
+  $('#decTools').hidden = !ds.length;
+  taskBadge();
+}
+function openTasks() { taskEditN = null; projMode = null; $('#projForm').hidden = true; drawTasks(); tasksDlg.showModal(); }
+$('#openTasks').addEventListener('click', openTasks);
+$('#tasksX').addEventListener('click', () => tasksDlg.close());
+$('#projSel').addEventListener('change', e => {
+  chats[cur].project = e.target.value; cfg.lastProject = e.target.value; store('mvm.cfg', cfg); saveCur(false); drawTasks();
+  push({who:'sys', text:`This chat is now on the "${board().name}" task board.`}); render();
+});
+function projForm(mode) { projMode = mode; $('#projForm').hidden = false; $('#projName').value = mode === 'rename' ? board().name : ''; $('#projSave').textContent = mode === 'rename' ? 'Save' : 'Create'; $('#projName').focus(); }
+$('#projNew').addEventListener('click', () => projForm('new'));
+$('#projRename').addEventListener('click', () => projForm('rename'));
+$('#projCancel').addEventListener('click', () => { $('#projForm').hidden = true; projMode = null; });
+$('#projForm').addEventListener('submit', e => {
+  e.preventDefault(); const name = $('#projName').value.trim(); if (!name) return;
+  if (projMode === 'rename') { board().name = name; saveBoards(board()); }
+  else {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) + '-' + newId().slice(0, 4);
+    boards[id] = {id, name, tasks:[], nextN:1, updatedAt:Date.now()}; store('mvm.boards', boards);
+    chats[cur].project = id; cfg.lastProject = id; store('mvm.cfg', cfg); saveCur(false);
+    push({who:'sys', text:`This chat is now on the new "${name}" task board.`}); render();
+  }
+  $('#projForm').hidden = true; projMode = null; drawTasks();
+});
+$('#taskAdd').addEventListener('submit', e => {
+  e.preventDefault(); const title = $('#taskTitle').value.trim(); if (!title) return;
+  const b = board(), t = {n:b.nextN++, title:title.slice(0, 200), owner:$('#taskOwner').value, by:'deeks', status:'open', notes:[], created:Date.now(), updated:Date.now()};
+  b.tasks.push(t); saveBoards(b); taskEvent('deeks', 'add', t); render();
+  $('#taskTitle').value = ''; drawTasks(); $('#taskTitle').focus();
+});
+tasksDlg.addEventListener('click', e => {
+  const b = board(), btn = e.target.closest('button'); if (!btn) return;
+  const find = n => b.tasks.find(t => t.n === +n);
+  if (btn.dataset.ddel) {
+    const list = decs(), d = list.find(x => x.id === btn.dataset.ddel); if (!d) return;
+    if (!d.armed) { d.armed = true; drawTasks(); setTimeout(() => { delete d.armed; if (tasksDlg.open) drawTasks(); }, 3000); return; }
+    b.decisions = list.filter(x => x !== d); saveBoards(b); push({who:'decision', by:'deeks', text:d.text, removed:true}); render(); drawTasks(); return;
+  }
+  if (btn.dataset.tick) {
+    const t = find(btn.dataset.tick); if (!t) return;
+    t.status = t.status === 'done' ? 'open' : 'done'; t.updated = Date.now(); if (t.status === 'done') t.doneBy = 'deeks';
+    saveBoards(b); taskEvent('deeks', t.status === 'done' ? 'done' : 'reopen', t); render(); drawTasks();
+  } else if (btn.dataset.tedit) { taskEditN = +btn.dataset.tedit; drawTasks(); const i = $(`#tedit${taskEditN}`); if (i) i.focus(); }
+  else if (btn.dataset.tdel) {
+    const t = find(btn.dataset.tdel); if (!t) return;
+    if (!t.delArmed) { t.delArmed = true; drawTasks(); setTimeout(() => { delete t.delArmed; if (tasksDlg.open) drawTasks(); }, 3000); return; }
+    b.tasks = b.tasks.filter(x => x !== t); delete t.delArmed; saveBoards(b); taskEvent('deeks', 'del', t); render(); drawTasks();
+  }
+});
+$('#decAdd').addEventListener('submit', e => {
+  e.preventDefault(); const t = $('#decText').value.trim(); if (!t) return;
+  decs().push({id:newId(), text:t.slice(0, 300), by:'deeks', ts:Date.now(), chat:cur}); saveBoards(board());
+  push({who:'decision', by:'deeks', text:t.slice(0, 300)}); render(); $('#decText').value = ''; drawTasks(); $('#decText').focus();
+});
+const decText = () => { const b = board(); return `# Decisions: ${b.name}\n\n` + decs().map(d => `- ${d.text} (${d.by === 'deeks' ? 'Deeks' : NAMES[d.by]}, ${new Date(d.ts).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'})})`).join('\n') + '\n'; };
+$('#decCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(decText()); $('#decStatus').textContent = 'Copied.'; } catch { $('#decStatus').textContent = 'Your browser blocked copying.'; } });
+$('#decSave').addEventListener('click', async () => {
+  const st = $('#decStatus'); if (!ghReady()) { st.textContent = 'Add your GitHub repo and token in Settings first.'; return; }
+  const path = `${DIR}/decisions/${board().id}.md`; st.textContent = 'Saving…';
+  try { const sha = await ghPut(path, decText(), `Update decisions: ${board().name}`); st.textContent = `Saved to ${cfg.ghRepo} as ${path} (${sha}).`; toast('Decisions saved', `${path} is in ${cfg.ghRepo}`); }
+  catch (err) { st.textContent = 'Save failed: ' + err.message; }
+});
+tasksDlg.addEventListener('change', e => {
+  const s = e.target.closest('[data-own]'); if (!s) return;
+  const b = board(), t = b.tasks.find(x => x.n === +s.dataset.own); if (!t || t.owner === s.value) return;
+  t.owner = s.value; t.updated = Date.now(); saveBoards(b); taskEvent('deeks', 'move', t); render(); drawTasks();
+});
+tasksDlg.addEventListener('submit', e => {
+  const f = e.target.closest('[data-tsave]'); if (!f) return;
+  e.preventDefault(); const b = board(), t = b.tasks.find(x => x.n === +f.dataset.tsave), v = f.querySelector('input').value.trim();
+  if (t && v && v !== t.title) { t.title = v.slice(0, 200); t.updated = Date.now(); saveBoards(b); }
+  taskEditN = null; drawTasks();
+});
+
+// approve / discard commit proposals
+function redraw(i) { const el = $(`#ring [data-i="${i}"]`); if (el && log[i]) el.outerHTML = bubble(log[i], false); }
+$('#ring').addEventListener('click', async e => {
+  if (e.target.closest('[data-opentasks]')) { openTasks(); return; }
+  if (e.target.closest('[data-openbank]')) { openSettings(); setTimeout(() => $('#bankList').scrollIntoView({block:'start'}), 60); return; }
+  const rc = e.target.closest('[data-react]');
+  if (rc) {
+    const i = +rc.dataset.react, m = log[i]; if (!m) return;
+    const r = {...(m.reacts || {})};
+    if (r.deeks === rc.dataset.e) delete r.deeks; else r.deeks = rc.dataset.e;
+    if (Object.keys(r).length) m.reacts = r; else delete m.reacts;
+    saveCur(); redraw(i); return;
+  }
+  const br = e.target.closest('[data-branch]');
+  if (br) {
+    const i = +br.dataset.branch, src = chats[cur];
+    const c = blank(); c.title = ('Branch: ' + src.title).slice(0, 80);
+    c.log = JSON.parse(JSON.stringify(log.slice(0, i + 1).filter(keepable))); c.mem = mem;
+    chats[c.id] = c; switchTo(c.id);
+    toast('Branched', 'New chat with everything up to that message. The original is untouched, find it in Chats.'); return;
+  }
+  const cp = e.target.closest('[data-copymsg]');
+  if (cp) { const m = log[+cp.dataset.copymsg]; try { await navigator.clipboard.writeText(m.text); toast('Copied', 'Message is on your clipboard.', {ms:2500}); } catch { toast('Copy blocked', 'Your browser refused clipboard access.', {bad:true}); } return; }
+  const ed = e.target.closest('[data-edit]');
+  if (ed) { editI = +ed.dataset.edit; openI = null; redraw(editI); const ta = $(`#ring [data-i="${editI}"] textarea`); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+  if (e.target.closest('[data-canceledit]')) { const i = editI; editI = null; redraw(i); return; }
+  const rsd = e.target.closest('[data-resend]');
+  if (rsd) {
+    const i = +rsd.dataset.resend, ta = $(`#ring [data-i="${i}"] textarea`), t = ta?.value.trim();
+    if (!t) return;
+    if (busy || freeRunning || inFlight) await haltAll();
+    log.splice(i + 1); log[i].text = t; log[i].edited = Date.now(); delete log[i].reacts;
+    editI = null; openI = null; lastAI = null; lastTurn = {who:null, msg:null};
+    const c = chats[cur]; c.pushedLen = Math.min(c.pushedLen || 0, i + 1);
+    saveCur(); shown = log.length; render(); setRound('Live');
+    return reply(t);
+  }
+  const sp = e.target.closest('[data-speak]');
+  if (sp) { if (speaking) { stopSpeech(); return; } const m = log[+sp.dataset.speak]; if (m) speak(m.text, m.who); return; }
+  const fx = e.target.closest('[data-fix]');
+  if (fx) { const i = log.findIndex(m => m.fix === 'conflict'); if (i > -1) log.splice(i, 1); render(); return command(fx.dataset.fix === 'force' ? '/push force' : '/pull'); }
+  const rt = e.target.closest('[data-retry]');
+  if (rt) {
+    if (busy || freeRunning || inFlight) await haltAll();
+    const i = +rt.dataset.retry, who = log[i]?.retry; if (!who) return;
+    log.splice(i, 1); setBusy(true); const ok = await turn(who); setBusy(false);
+    if (ok && mode === 'free') { sinceDeeks++; freeLoop(); }
+    return;
+  }
+  const a = e.target.closest('[data-approve],[data-discard]');
+  if (!a) {
+    const b = e.target.closest('.msg');
+    if (!b || b.dataset.i == null || editI === +b.dataset.i || e.target.closest('button,a,pre,details,textarea,input,summary') || getSelection().toString()) return;
+    const i = +b.dataset.i; openI = openI === i ? null : i;
+    document.querySelectorAll('#ring .msg.open').forEach(x => { if (x !== b) x.classList.remove('open'); });
+    b.classList.toggle('open', openI === i); return;
+  }
+  const m = log[+(a.dataset.approve ?? a.dataset.discard)]; if (!m || m.who !== 'action') return;
+  if (a.dataset.discard !== undefined) { m.status = 'discarded by Deeks'; saveCur(); return render(); }
+  a.disabled = true; a.textContent = 'Committing…';
+  try { const sha = await ghPut(m.path, m.content, m.message); m.status = 'committed'; m.result = `${cfg.ghRepo} ${sha}`; toast('Commit complete', `${m.path} is in ${cfg.ghRepo} (${sha})`); }
+  catch (err) { m.status = 'commit failed'; m.result = err.message; toast('Commit failed', err.message, {bad:true, ms:10000}); }
+  saveCur(); render();
+});
+$('#toastX').addEventListener('click', () => $('#toast').hidden = true);
+$('#remindLater').addEventListener('click', () => { chats[cur].snooze = unpushed() + Math.max(1, +cfg.remindN || 10); saveCur(false); remind(); });
+document.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => {
+  const who = b.dataset.ask;
+  $('#say').value = who === 'both' ? 'Mote, Minx: update anything that needs updating, then push this chat to GitHub.' : `${NAMES[who]}, push this chat to GitHub please.`;
+  if (mode === 'turns') document.querySelector(`[data-to="${who}"]`)?.click();
+  $('#say').focus();
+}));
+
+function hint() {
+  const v = $('#say').value, h = $('#hint');
+  const on = v.startsWith('/') && !v.includes('\n');
+  const am = !on && v.slice(0, $('#say').selectionEnd ?? v.length).match(/(?:^|\s)@(\w*)$/);
+  if (am) {
+    const opts = [['mote','talk to Mote'],['minx','talk to Minx'],['both','talk to both']].filter(o => o[0].startsWith(am[1].toLowerCase()));
+    h.hidden = !opts.length;
+    h.innerHTML = opts.map(o => `<button type="button" data-at="${o[0]}"><b class="at">@${o[0]}</b> ${o[1]}</button>`).join('');
+    return;
+  }
+  h.hidden = !on;
+  if (on) {
+    const q = v.slice(1).split(' ')[0].toLowerCase();
+    const cmds = [['new','start a new chat'],['tasks','open the task board'],['push','save this chat to GitHub'],['pull','load the latest from GitHub'],['compact','write a handover, wipe the chat, keep the handover'],['clear','wipe this chat, handover included'],['handover','copy the current handover'],['help','list commands']];
+    h.innerHTML = cmds.filter(c => c[0].startsWith(q)).map(c => `<button type="button" data-cmd="${c[0]}"><b>/${c[0]}</b> ${c[1]}</button>`).join('') || '<span>No such command. Try /help</span>';
+  }
+}
+$('#hint').addEventListener('click', e => {
+  const at = e.target.closest('[data-at]');
+  if (at) {
+    const ta = $('#say'), end = ta.selectionEnd ?? ta.value.length, before = ta.value.slice(0, end).replace(/@\w*$/, '@' + at.dataset.at + ' ');
+    ta.value = before + ta.value.slice(end); ta.focus(); ta.setSelectionRange(before.length, before.length); hint(); return;
+  }
+  const b = e.target.closest('[data-cmd]'); if (!b) return;
+  $('#say').value = '/' + b.dataset.cmd + ' '; $('#say').focus(); hint();
+});
+$('#say').addEventListener('input', () => { lastKey = Date.now(); hint(); });
+$('#say').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer:fine)').matches) { e.preventDefault(); $('#form').requestSubmit(); }
+});
+document.querySelectorAll('[data-to]').forEach(b => b.addEventListener('click', () => {
+  to = b.dataset.to;
+  document.querySelectorAll('[data-to]').forEach(x => x.setAttribute('aria-pressed', x === b));
+}));
+$('#spar').addEventListener('click', () => { if (!busy) spar(); });
+document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => {
+  if (busy && mode === 'turns') return;
+  mode = b.dataset.mode;
+  document.querySelectorAll('.modes button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('#turnCtl').hidden = mode !== 'turns'; $('#freeCtl').hidden = mode !== 'free';
+  if (mode === 'turns') freeRunning = false;
+  setRound(mode === 'free' ? 'Free for all' : 'Standby'); freeUI();
+}));
+$('#pauseBtn').addEventListener('click', () => {
+  if (freeRunning) { freeRunning = false; $('#pauseBtn').textContent = 'Pausing after this one'; }
+  else { sinceDeeks = 0; freeLoop(); }
+});
+$('#stop').addEventListener('click', () => { stopFlag = true; $('#stop').textContent = 'Stopping after this one'; setTimeout(() => $('#stop').textContent = 'Stop', 4000); });
+
+let clearArmed = null;
+$('#clear')?.addEventListener('click', e => {
+  if (!clearArmed) { e.target.textContent = 'Sure? Tap again'; clearArmed = setTimeout(() => { e.target.textContent = 'New fight'; clearArmed = null; }, 3000); return; }
+  clearTimeout(clearArmed); clearArmed = null; e.target.textContent = 'New fight';
+  clearAll();
+});
+$('#copy').addEventListener('click', async e => {
+  const txt = log.filter(m => m.who !== 'err').map(m => `${NAMES[m.who]} (${time(m.ts)}):\n${m.text}`).join('\n\n');
+  try { await navigator.clipboard.writeText(txt); e.target.textContent = 'Copied'; }
+  catch { e.target.textContent = 'Copy blocked'; }
+  setTimeout(() => e.target.textContent = 'Copy this chat', 2000);
+});
+
+const dlg = $('#settings');
+const fields = ['kA','kO','mA','mO','pA','pO','autoN','mmA','mmO','ghRepo','ghBranch','ghToken','remindN','ttsEngine','ttsModel','vA','vO','priceA','priceO','fx'];
+const counts = () => document.querySelectorAll('.count').forEach(c => {
+  const v = $('#' + c.dataset.for).value, n = v.length;
+  const lines = v ? v.split('\n').length : 0, tok = n < 4000 ? 'under 1k' : `about ${Math.round(n / 4000)}k`;
+  c.textContent = n ? `${n.toLocaleString('en-GB')} characters, ${lines.toLocaleString('en-GB')} lines, ${tok} tokens per message` : '';
+});
+document.querySelectorAll('[data-into]').forEach(inp => inp.addEventListener('change', async () => {
+  const f = inp.files[0]; if (!f) return;
+  $('#' + inp.dataset.into).value = await f.text(); inp.value = ''; counts();
+}));
+document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', () => { $('#' + b.dataset.clear).value = ''; counts(); }));
+['mmA','mmO'].forEach(id => $('#' + id).addEventListener('input', counts));
+function drawBank() {
+  const byN = new Map(bank.map(e => [e.n, e]));
+  const roots = bank.filter(e => !e.re || !byN.has(e.re)), kids = n => bank.filter(e => e.re === n);
+  const row = (e, re) => `<div class="bankrow${re ? ' re' : ''}"><div class="btext"><div><b class="bw bw-${e.by}">#${e.n} ${NAMES[e.by]}</b>${e.re ? ` <span>disputing #${e.re}</span>` : ''}</div><div>${esc(e.text)}</div><span>${new Date(e.ts).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</span></div><button type="button" class="tool" data-bdel="${e.id}">${e.armed ? 'Sure?' : 'Remove'}</button></div>`;
+  const walk = (e, d) => row(e, d) + kids(e.n).map(k => walk(k, true)).join('');
+  $('#bankList').innerHTML = bank.length ? roots.map(e => walk(e, false)).join('') : '<p class="emptytasks">Empty so far. It fills up as they chat.</p>';
+  $('#bankTools').hidden = !bank.length; $('#bankClear').textContent = 'Clear the whole bank';
+}
+$('#bankList').addEventListener('click', e => {
+  const b = e.target.closest('[data-bdel]'); if (!b) return;
+  const x = bank.find(y => y.id === b.dataset.bdel); if (!x) return;
+  if (!x.armed) { x.armed = true; drawBank(); setTimeout(() => { delete x.armed; drawBank(); }, 3000); return; }
+  bank = bank.filter(y => y !== x); bankGone.add(x.id); saveBank(); store('mvm.bankGone', [...bankGone]); drawBank();
+});
+$('#bankClear').addEventListener('click', e => {
+  if (e.target.textContent !== 'Tap again to clear everything') { e.target.textContent = 'Tap again to clear everything'; setTimeout(() => { if (e.target.isConnected) e.target.textContent = 'Clear the whole bank'; }, 3000); return; }
+  bank.forEach(x => bankGone.add(x.id)); bank = []; saveBank(); store('mvm.bankGone', [...bankGone]); drawBank();
+});
+function openSettings() { fields.forEach(f => $('#' + f).value = cfg[f]); fillModelSelect('mA'); fillModelSelect('mO'); fillVoiceSelects(); $('#autoSpeak').checked = !!cfg.autoSpeak; $('#voiceStatus').textContent = ''; $('#learn').checked = !!cfg.learn; counts(); $('#keyStatus').textContent = ''; $('#backupStatus').textContent = ''; drawBank(); dlg.showModal(); }
+$('#checkKeys').addEventListener('click', async () => {
+  const st = $('#keyStatus'); st.textContent = 'Checking…';
+  const tmp = {...cfg, kA:$('#kA').value.trim(), kO:$('#kO').value.trim(), mA:$('#mA').value.trim() || DEF.mA, mO:$('#mO').value.trim() || DEF.mO};
+  const saved = cfg; cfg = tmp;
+  const res = await Promise.all([
+    callAnthropic('Reply with the single word: ready', [{role:'user', content:'ping'}]).then(() => 'Mote: working', e => 'Mote: ' + e.message),
+    callOpenAI([{role:'user', content:'Reply with the single word: ready'}]).then(() => 'Minx: working', e => 'Minx: ' + e.message)
+  ]);
+  cfg = saved; st.textContent = res.join('. ');
+});
+$('#checkGh').addEventListener('click', async () => {
+  const st = $('#ghStatus'), repo = $('#ghRepo').value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''), tok = $('#ghToken').value.trim();
+  if (!repo || !tok) { st.textContent = 'Fill in the repo and token first.'; return; }
+  st.textContent = 'Checking…';
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repo}`, {headers:{'authorization':'Bearer ' + tok, 'accept':'application/vnd.github+json'}});
+    if (!r.ok) await fail(r);
+    const j = await r.json();
+    st.textContent = `Connected to ${j.full_name}. ${j.private ? 'Private repo, good.' : 'Warning: this repo is PUBLIC, so anyone can read your chats. Make it private.'} ${j.permissions?.push ? 'Write access OK.' : 'This token can\'t write, so pushes and commits will fail.'}`;
+  } catch (e) { st.textContent = 'GitHub said: ' + e.message; }
+});
+$('#forgetKeys').addEventListener('click', () => { $('#kA').value = ''; $('#kO').value = ''; $('#ghToken').value = ''; cfg.kA = cfg.kO = cfg.ghToken = ''; store('mvm.cfg', cfg); $('#keyStatus').textContent = 'Keys removed from this browser.'; });
+$('#backup').addEventListener('click', () => {
+  const c = {...cfg}; if (!$('#withKeys').checked) { c.kA = ''; c.kO = ''; c.ghToken = ''; }
+  saveCur(false);
+  const blob = new Blob([JSON.stringify({app:'mote-vs-minx', v:4, saved:new Date().toISOString(), cfg:c, chats, cur, boards, bank}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `mote-vs-minx-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  $('#backupStatus').textContent = $('#withKeys').checked ? 'Backup downloaded, keys included. Keep that file private.' : 'Backup downloaded, without keys.';
+});
+$('#restore').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'mote-vs-minx') throw new Error('That isn\'t a Mote vs Minx backup.');
+    const keep = {kA:cfg.kA, kO:cfg.kO, ghToken:cfg.ghToken};
+    cfg = {...DEF, ...d.cfg, pv:PV};
+    for (const k in keep) if (!cfg[k]) cfg[k] = keep[k];
+    if (d.chats) { chats = {...chats, ...d.chats}; cur = d.cur && chats[d.cur] ? d.cur : cur; }
+    else { const c = blank(); c.title = 'Restored chat'; c.log = d.log || []; c.mem = d.mem || ''; chats[c.id] = c; cur = c.id; }
+    if (d.boards) { boards = mergeBoards(boards, d.boards); store('mvm.boards', boards); taskBadge(); }
+    if (d.bank) { bank = mergeBank(bank, d.bank); saveBank(); }
+    log = chats[cur].log; mem = chats[cur].mem; shown = 0;
+    store('mvm.cfg', cfg); store('mvm.chats', chats); store('mvm.cur', cur); $('#chatTitle').textContent = chats[cur].title;
+    fields.forEach(k => $('#' + k).value = cfg[k]); $('#learn').checked = !!cfg.learn; counts(); render();
+    $('#backupStatus').textContent = `Restored backup from ${new Date(d.saved).toLocaleString('en-GB')}.`;
+  } catch (err) { $('#backupStatus').textContent = 'Restore failed: ' + err.message; }
+  e.target.value = '';
+});
+$('#openSettings').addEventListener('click', openSettings);
+$('#showKeys').addEventListener('click', e => {
+  const show = $('#kA').type === 'password';
+  $('#kA').type = $('#kO').type = show ? 'text' : 'password';
+  e.target.textContent = show ? 'Hide keys' : 'Show keys';
+});
+$('#resetP').addEventListener('click', () => { $('#pA').value = MOTE_P; $('#pO').value = MINX_P; });
+$('#setForm').addEventListener('submit', () => {
+  const before = JSON.stringify(SHARED.map(k => cfg[k]));
+  fields.forEach(f => cfg[f] = $('#' + f).value.trim() || DEF[f]);
+  cfg.ghRepo = cfg.ghRepo.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/$/, '');
+  cfg.learn = $('#learn').checked; cfg.autoSpeak = $('#autoSpeak').checked;
+  if (JSON.stringify(SHARED.map(k => cfg[k])) !== before) cfg.updatedAt = Date.now();
+  remind();
+  store('mvm.cfg', cfg);
+});
+
+$('#chatTitle').textContent = chats[cur].title;
+saveCur(false); render(); remind(); taskBadge(); showPreset();
+if (!cfg.kA || !cfg.kO) openSettings();
+}
+</script>
+</body>
+</html>
