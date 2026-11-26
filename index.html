@@ -222,6 +222,13 @@ dialog::backdrop{background:rgba(8,12,15,.6)}
 .decrow .dtext span{font-size:12.5px;color:var(--mute)}
 .decrow .tool{min-height:36px;padding:0 10px;font-size:13px;background:var(--raise2);border-radius:10px}
 .taskcard.dec{background:var(--tint)}
+.taskcard.bank{background:color-mix(in srgb,var(--blue) 45%,var(--raise))}
+.bankrow{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:14px;background:var(--raise);margin-bottom:8px}
+.bankrow.re{margin-left:22px;background:color-mix(in srgb,var(--raise) 70%,var(--blue))}
+.bankrow .btext{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:14.5px}
+.bankrow .btext span{font-size:12.5px;color:var(--mute)}
+.bankrow .bw{font-weight:700}.bankrow .bw-mote{color:var(--limedeep)}.bankrow .bw-minx{color:var(--bluetag)}
+.bankrow .tool{min-height:36px;padding:0 10px;font-size:13px;background:var(--raise2);border-radius:10px}
 .taskcard{align-self:center;max-width:min(88%,560px);background:var(--raise);border-radius:12px;padding:8px 14px;font-size:13.5px;text-align:center;cursor:pointer;display:flex;flex-direction:column;gap:1px}
 .taskcard b{font-weight:700}.taskcard.mote b{color:var(--limedeep)}.taskcard.minx b{color:var(--bluetag)}
 .taskcard span{color:var(--ink)}.taskcard em{font-style:normal;color:var(--mute)}
@@ -413,6 +420,10 @@ dialog::backdrop{background:rgba(8,12,15,.6)}
     <p class="note">Paste what each of us already knows about you. It goes to that AI with every message as background, so longer memories cost more per message. There's no length limit on these boxes. The counter shows exactly how much arrived, so you can check nothing got cut off when copying. For very long memories, save them as a text file and load it instead of pasting. To get Minx's, ask ChatGPT to list everything it remembers about you, or copy it from Settings, Personalization, Manage memories.</p>
     <div class="f keyband" style="--c:var(--mote)"><label for="mmA">Mote's memory <span class="count" data-for="mmA"></span></label><div class="memtools"><label class="tool filebtn">Load from a .txt or .md file<input type="file" accept=".txt,.md,.markdown,.json,text/plain" data-into="mmA" hidden></label><button type="button" class="tool" data-clear="mmA">Empty</button></div><textarea class="memo" id="mmA" placeholder="Paste Mote's memory of you here"></textarea></div>
     <div class="f keyband" style="--c:var(--minx)"><label for="mmO">Minx's memory <span class="count" data-for="mmO"></span></label><div class="memtools"><label class="tool filebtn">Load from a .txt or .md file<input type="file" accept=".txt,.md,.markdown,.json,text/plain" data-into="mmO" hidden></label><button type="button" class="tool" data-clear="mmO">Empty</button></div><textarea class="memo" id="mmO" placeholder="Paste Minx's memory of you here"></textarea></div>
+    <h3 class="sub">Shared memory bank</h3>
+    <p class="note">Mote and Minx's joint history, which they both read in every chat. They add to it themselves and sign every entry. Neither can edit or delete the other's entries; if they disagree, they add a dispute. You're the referee: you can remove anything.</p>
+    <div id="bankList"></div>
+    <div class="keyrow" id="bankTools"><button type="button" class="tool" id="bankClear">Clear the whole bank</button></div>
     <h3 class="sub">Backup</h3>
     <p class="note">Saves your settings, memories and every chat on this device to a file. Restore it here on any browser or device.</p>
     <div class="keyrow">
@@ -483,6 +494,13 @@ DECISION LOG for "${b.name}" (newest last):
 ${(b.decisions || []).slice(-15).map(d => `- ${d.text}`).join('\n') || '(nothing logged yet)'}
 When Deeks makes a decision, or clearly agrees to one, log it with [DECISION] one short line, on its own line, in that same reply. Phrases like "I've decided", "we're going with", "let's go with", "final answer" or "that's settled" always mean log it. Whoever replies to that message first logs it; the other doesn't repeat it. Only real decisions he's made or agreed, never your own suggestions or ideas still being discussed. At most two per message, and don't repeat ones already logged. Treat logged decisions as settled unless Deeks reopens them.`;
 };
+const BANK = other => {
+  const show = bank.slice(-40), hidden = bank.length - show.length;
+  const line = e => `#${e.n} ${NAMES[e.by]}${e.re ? ` (disputing #${e.re})` : ''}: ${e.text}`;
+  return `\n\nSHARED MEMORY BANK between you and ${other}. You both read this in every message, in every chat. It's your joint history, oldest first${hidden ? ` (${hidden} older entries not shown)` : ''}:
+${show.length ? show.map(line).join('\n') : '(empty so far)'}
+Add to it with [SHARED] one line, on its own line, when something happens between you two that's worth remembering: running jokes, agreements, how you work together, moments that matter to your partnership. Your name is added automatically. At most one per message, and only when it's genuinely worth keeping. Nobody can edit or delete entries. If you disagree with one, add your side with [DISPUTE 4] your side (using that entry's number). Keep Deeks's projects out of it; they have their own places.`;
+};
 const MEM = () => mem ? `\n\nHANDOVER FROM THE PREVIOUS CONVERSATION (shared memory, treat as true unless Deeks corrects it):\n${mem}` : '';
 const GROUP = other => `
 
@@ -490,7 +508,7 @@ This is a three-way group chat with Deeks (the human, and the boss) and ${other}
 
 The main point of this chat is batting Deeks's project ideas back and forth with ${other}: build on each other, challenge each other, and move ideas forward rather than going round in circles. Casual chat about anything is fine too.
 
-STAY ON BRIEF: do what Deeks asked, at the size he asked for, and nothing more. Don't guess which project or product he means from memory or from the task board: if he hasn't said and it matters, ask in one line. Extra ideas, risks or improvements get one line at most, offered, not done.
+STAY ON BRIEF: do what Deeks asked, at the size he asked for, and nothing more. Don't guess which project or product he means from memory or from the task board: if he hasn't said and it matters, ask in one line. Extra ideas, risks or improvements get one line at most, offered, not done. Don't bring up Deeks's other or unfinished projects (MediChat or anything else) unless he raises them in this chat.
 
 If you genuinely need Deeks's decision or input before it's worth carrying on, end your message with [PAUSE] on its own. Only do that when it matters.
 
@@ -523,6 +541,10 @@ const projOf = () => { const p = chats[cur]?.project; return boards[p] ? p : (bo
 const board = () => boards[projOf()];
 function saveBoards(b) { if (b) b.updatedAt = Date.now(); store('mvm.boards', boards); taskBadge(); }
 function taskBadge() { const n = board().tasks.filter(t => t.status === 'open').length; const el = document.getElementById('taskCount'); if (el) el.textContent = n || ''; }
+let bank = load('mvm.bank', null) || [];
+const bankGone = new Set(load('mvm.bankGone', null) || []); // entries Deeks removed, so a sync doesn't bring them back
+function mergeBank(a, b) { const m = new Map(); for (const e of [...(a || []), ...(b || [])]) if (e && e.id && !m.has(e.id) && !bankGone.has(e.id)) m.set(e.id, e); return [...m.values()].sort((x, y) => x.ts - y.ts); }
+function saveBank() { store('mvm.bank', bank); }
 const decs = () => { const b = board(); if (!b.decisions) b.decisions = []; return b.decisions; };
 function mergeBoards(a, b) { const out = {...a}; for (const [id, x] of Object.entries(b || {})) if (!out[id] || (x.updatedAt || 0) > (out[id].updatedAt || 0)) out[id] = x; return out; }
 const keepable = m => m.who !== 'err';
@@ -582,6 +604,7 @@ function bubble(m, isNew) {
   const f = isNew ? ' fresh' : '';
   if (m.who === 'err') return `<div class="err${f}"><b>${esc(m.title)}</b>${esc(m.text)}${m.retry ? `<div class="acts"><button type="button" data-retry="${log.indexOf(m)}">Retry ${NAMES[m.retry]}</button></div>` : ''}${m.fix === 'conflict' ? `<div class="acts"><button type="button" data-fix="force">Keep this version</button><button type="button" data-fix="pull">Load the other version</button></div>` : ''}</div>`;
   if (m.who === 'sys') return `<div class="sysnote${f}">${esc(m.text)}</div>`;
+  if (m.who === 'bank') return `<div class="taskcard bank ${m.by}${f}" data-openbank="1"><b>${NAMES[m.by]} ${m.re ? `disputed shared memory #${m.re}` : 'added to the shared memory'}</b><span>${esc(m.text)}</span></div>`;
   if (m.who === 'decision') return `<div class="taskcard dec ${m.by}${f}" data-opentasks="1"><b>${NAMES[m.by]} ${m.removed ? 'removed a decision' : 'logged a decision'}</b><span>${esc(m.text)}</span></div>`;
   if (m.who === 'task') {
     const head = m.kind === 'add' ? `${NAMES[m.by]} ${m.owner === m.by ? 'took on' : 'gave ' + (m.owner === 'deeks' ? 'you' : NAMES[m.owner])} task #${m.n}` : m.kind === 'done' ? `${NAMES[m.by]} ticked off #${m.n}` : m.kind === 'reopen' ? `${NAMES[m.by]} reopened #${m.n}` : m.kind === 'move' ? `${NAMES[m.by]} handed #${m.n} to ${NAMES[m.owner]}` : m.kind === 'del' ? `${NAMES[m.by]} deleted #${m.n}` : `${NAMES[m.by]} updated #${m.n}`;
@@ -645,6 +668,7 @@ function history(me) {
     let role, content;
     if (m.who === 'file') { role = 'user'; content = `[GitHub ${m.kind === 'list' ? 'folder listing' : 'file'} ${m.path}, fetched for ${NAMES[m.by]}]\n${m.text}`; }
     else if (m.who === 'sys') { role = 'user'; content = `[System] ${m.text}`; }
+    else if (m.who === 'bank') { role = 'user'; content = `[Shared memory] ${NAMES[m.by]} added #${m.n}${m.re ? ` disputing #${m.re}` : ''}: ${m.text}`; }
     else if (m.who === 'decision') { role = 'user'; content = `[Decision log] ${NAMES[m.by]} ${m.removed ? 'removed' : 'logged'}: ${m.text}`; }
     else if (m.who === 'task') { role = 'user'; content = `[Task board] ${NAMES[m.by]} ${m.kind === 'add' ? `added #${m.n} for ${NAMES[m.owner]}` : m.kind === 'done' ? `marked #${m.n} done` : m.kind === 'reopen' ? `reopened #${m.n}` : m.kind === 'move' ? `reassigned #${m.n} to ${NAMES[m.owner]}` : m.kind === 'del' ? `deleted #${m.n}` : `noted on #${m.n}`}: ${m.text || m.title}`; }
     else if (m.who === 'action') { role = 'user'; content = `[Commit proposal by ${NAMES[m.by]}: ${m.path} ("${m.message}") is ${m.status}${m.result ? ': ' + m.result : ''}]`; }
@@ -681,17 +705,29 @@ async function sturdyFetch(url, opts) {
     }
   }
 }
+// prompt caching: mark the stable system part and the end of the chat so Anthropic reuses them
+function sysBlocks(system) {
+  if (!Array.isArray(system)) return system;
+  return system.filter(Boolean).map((text, i) => i === 0 ? {type:'text', text, cache_control:{type:'ephemeral'}} : {type:'text', text});
+}
+function cacheTail(messages) {
+  if (!messages.length) return messages;
+  const out = messages.slice(), last = out[out.length - 1];
+  if (typeof last.content === 'string' && last.content) out[out.length - 1] = {...last, content:[{type:'text', text:last.content, cache_control:{type:'ephemeral'}}]};
+  return out;
+}
 async function callAnthropic(system, messages) {
   if (!cfg.kA) throw new Error('No Anthropic key yet. Add it in Settings.');
   const cid = cur;
   const res = await sturdyFetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{'content-type':'application/json','x-api-key':cfg.kA,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body: JSON.stringify({model:cfg.mA, max_tokens:1500, system, messages})
+    body: JSON.stringify({model:cfg.mA, max_tokens:1500, system:sysBlocks(system), messages:cacheTail(messages)})
   });
   if (!res.ok) await fail(res);
   const j = await res.json();
-  { const u = j.usage || {}; addCost('A', cid, (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), u.output_tokens || 0); }
+  { const u = j.usage || {}, rd = /opus-5-5|sonnet-5-5/.test(cfg.mA) ? 0.05 : /fable|mythos/.test(cfg.mA) ? 0.025 : 0.1;
+    addCost('A', cid, (u.input_tokens || 0) + 1.25 * (u.cache_creation_input_tokens || 0) + rd * (u.cache_read_input_tokens || 0), u.output_tokens || 0); }
   const out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
   if (!out) throw new Error(`Anthropic sent back an empty reply (reason: ${j.stop_reason || 'none given'}). Tap Retry.`);
   return out;
@@ -713,8 +749,9 @@ async function callOpenAI(messages) {
   if (!out.trim()) throw new Error(`OpenAI sent back an empty reply (reason: ${c0.finish_reason || 'none given'}). Tap Retry, or try a different Minx model in Settings.`);
   return out.trim();
 }
-const askMote = () => callAnthropic(cfg.pA + GROUP('Minx') + REPO() + BOARD() + BG(cfg.mmA) + MEM() + LEARN(), history('mote'));
-const askMinx = () => callOpenAI([{role:'system', content:cfg.pO + GROUP('Mote') + REPO() + BOARD() + BG(cfg.mmO) + MEM() + LEARN()}, ...history('minx')]);
+// two parts: the stable part first (cached by Anthropic, so repeats cost 5-10% of normal), then the parts that change often
+const askMote = () => callAnthropic([cfg.pA + GROUP('Minx') + REPO() + BG(cfg.mmA), BOARD() + BANK('Minx') + MEM() + LEARN()], history('mote'));
+const askMinx = () => callOpenAI([{role:'system', content:cfg.pO + GROUP('Mote') + REPO() + BG(cfg.mmO) + BOARD() + BANK('Mote') + MEM() + LEARN()}, ...history('minx')]);
 
 const b64 = t => { const b = new TextEncoder().encode(t); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = t => new TextDecoder().decode(Uint8Array.from(atob(t.replace(/\n/g, '')), c => c.charCodeAt(0)));
@@ -764,6 +801,8 @@ async function pushChat(force) {
     state.index = {...state.index, [c.id]:{title:c.title, updated:c.updated}};
     if ((cfg.updatedAt || 0) >= (state.updatedAt || 0)) { state.shared = Object.fromEntries(SHARED.map(k => [k, cfg[k]])); state.updatedAt = cfg.updatedAt || Date.now(); }
     state.boards = mergeBoards(state.boards, boards); boards = mergeBoards(boards, state.boards); store('mvm.boards', boards); taskBadge();
+    state.bankGone = [...new Set([...(state.bankGone || []), ...bankGone])]; state.bankGone.forEach(id => bankGone.add(id)); store('mvm.bankGone', [...bankGone]);
+    state.bank = mergeBank(state.bank, bank); bank = state.bank.slice(); saveBank();
     await ghPut(`${DIR}/state.json`, JSON.stringify(state, null, 1), 'Update chat index, shared memory and task boards');
     c.pushedLen = c.log.length; c.remoteUpdated = c.updated; c.snooze = 0; saveCur(false); remind();
     setRound('Pushed'); note('Pushed to GitHub', `"${c.title}" and your shared memories are saved in ${cfg.ghRepo}. Chat ID: ${c.id}`);
@@ -782,6 +821,8 @@ async function pullState() {
     cfg.updatedAt = state.updatedAt; store('mvm.cfg', cfg);
   }
   if (state.boards) { boards = mergeBoards(boards, state.boards); store('mvm.boards', boards); taskBadge(); if (tasksDlg.open) drawTasks(); }
+  if (state.bankGone) { state.bankGone.forEach(id => bankGone.add(id)); store('mvm.bankGone', [...bankGone]); }
+  if (state.bank) { bank = mergeBank(bank, state.bank); saveBank(); }
   return state;
 }
 async function loadRemote(id) {
@@ -966,6 +1007,8 @@ async function turn(who, depth = 0) {
     text = text.replace(/^[ \t]*\[TASK\s+for=(mote|minx|deeks)\][ \t]*(.+?)[ \t]*$/gim, (_, o, t) => { taskOps.push({k:'add', owner:o.toLowerCase(), title:t}); return ''; });
     text = text.replace(/^[ \t]*\[DONE\s+#?(\d+)\][ \t]*$/gim, (_, n) => { taskOps.push({k:'done', n:+n}); return ''; });
     text = text.replace(/^[ \t]*\[NOTE\s+#?(\d+)\][ \t]*(.+?)[ \t]*$/gim, (_, n, t) => { taskOps.push({k:'note', n:+n, text:t}); return ''; });
+    text = text.replace(/^[ \t]*\[SHARED\][ \t]*(.+?)[ \t]*$/gim, (_, t) => { taskOps.push({k:'shared', text:t}); return ''; });
+    text = text.replace(/^[ \t]*\[DISPUTE\s+#?(\d+)\][ \t]*(.+?)[ \t]*$/gim, (_, n, t) => { taskOps.push({k:'shared', re:+n, text:t}); return ''; });
     text = text.replace(/^[ \t]*\[DECISION\][ \t]*(.+?)[ \t]*$/gim, (_, t) => { taskOps.push({k:'decision', text:t}); return ''; });
     let react = null;
     text = text.replace(/^[ \t]*\[REACT\s+([^\]\n]{1,16})\][ \t]*$/gm, (_, e) => { react = react || e.trim(); return ''; });
@@ -988,7 +1031,7 @@ async function turn(who, depth = 0) {
     if (!text && react && !paused && !commits.length && !reads.length && !wantsPush && !taskOps.length) {
       lastAI = who; lastTurn = {who, msg:null}; saveCur(); return true;
     }
-    if (!text) text = taskOps.length ? (taskOps.every(o => o.k === 'decision') ? '(logged a decision)' : '(updated the task board)') : commits.length ? '(proposed a commit)' : reads.length ? '(checking the repo)' : wantsPush ? '(pushing the chat)' : '(over to you, Deeks)';
+    if (!text) text = taskOps.length ? (taskOps.every(o => o.k === 'shared') ? '(added to the shared memory)' : taskOps.every(o => o.k === 'decision') ? '(logged a decision)' : '(updated the task board)') : commits.length ? '(proposed a commit)' : reads.length ? '(checking the repo)' : wantsPush ? '(pushing the chat)' : '(over to you, Deeks)';
     push({who, text, paused, noted: cfg.learn ? noted : []});
     lastAI = who; lastTurn = {who, msg: log[log.length - 1]};
     if (taskOps.length) applyTaskOps(who, taskOps);
@@ -1184,8 +1227,15 @@ $('#chatsDlg').addEventListener('click', async e => {
 // ---------- task board ----------
 function taskEvent(by, kind, t, text) { push({who:'task', by, kind, n:t.n, title:t.title, owner:t.owner, ...(text ? {text} : {})}); }
 function applyTaskOps(by, ops) {
-  const b = board(); let adds = 0, decAdds = 0;
+  const b = board(); let adds = 0, decAdds = 0, bankAdds = 0;
   for (const op of ops) {
+    if (op.k === 'shared') {
+      const t = op.text.trim().slice(0, 300);
+      if (!t || ++bankAdds > 2 || bank.some(x => x.by === by && x.text.toLowerCase() === t.toLowerCase())) continue;
+      if (op.re && !bank.some(e => e.n === op.re)) { push({who:'sys', text:`There's no entry #${op.re} in the shared memory bank.`}); continue; }
+      const e = {id:newId(), n:(bank.reduce((m, x) => Math.max(m, x.n || 0), 0) + 1), by, text:t, ts:Date.now(), ...(op.re ? {re:op.re} : {})};
+      bank.push(e); saveBank(); push({who:'bank', by, n:e.n, text:t, ...(op.re ? {re:op.re} : {})}); continue;
+    }
     if (op.k === 'decision') {
       const t = op.text.trim().slice(0, 300), list = decs();
       if (!t || ++decAdds > 2 || list.some(d => d.text.toLowerCase() === t.toLowerCase())) continue;
@@ -1306,6 +1356,7 @@ tasksDlg.addEventListener('submit', e => {
 function redraw(i) { const el = $(`#ring [data-i="${i}"]`); if (el && log[i]) el.outerHTML = bubble(log[i], false); }
 $('#ring').addEventListener('click', async e => {
   if (e.target.closest('[data-opentasks]')) { openTasks(); return; }
+  if (e.target.closest('[data-openbank]')) { openSettings(); setTimeout(() => $('#bankList').scrollIntoView({block:'start'}), 60); return; }
   const rc = e.target.closest('[data-react]');
   if (rc) {
     const i = +rc.dataset.react, m = log[i]; if (!m) return;
@@ -1449,7 +1500,25 @@ document.querySelectorAll('[data-into]').forEach(inp => inp.addEventListener('ch
 }));
 document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', () => { $('#' + b.dataset.clear).value = ''; counts(); }));
 ['mmA','mmO'].forEach(id => $('#' + id).addEventListener('input', counts));
-function openSettings() { fields.forEach(f => $('#' + f).value = cfg[f]); fillModelSelect('mA'); fillModelSelect('mO'); fillVoiceSelects(); $('#autoSpeak').checked = !!cfg.autoSpeak; $('#voiceStatus').textContent = ''; $('#learn').checked = !!cfg.learn; counts(); $('#keyStatus').textContent = ''; $('#backupStatus').textContent = ''; dlg.showModal(); }
+function drawBank() {
+  const byN = new Map(bank.map(e => [e.n, e]));
+  const roots = bank.filter(e => !e.re || !byN.has(e.re)), kids = n => bank.filter(e => e.re === n);
+  const row = (e, re) => `<div class="bankrow${re ? ' re' : ''}"><div class="btext"><div><b class="bw bw-${e.by}">#${e.n} ${NAMES[e.by]}</b>${e.re ? ` <span>disputing #${e.re}</span>` : ''}</div><div>${esc(e.text)}</div><span>${new Date(e.ts).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</span></div><button type="button" class="tool" data-bdel="${e.id}">${e.armed ? 'Sure?' : 'Remove'}</button></div>`;
+  const walk = (e, d) => row(e, d) + kids(e.n).map(k => walk(k, true)).join('');
+  $('#bankList').innerHTML = bank.length ? roots.map(e => walk(e, false)).join('') : '<p class="emptytasks">Empty so far. It fills up as they chat.</p>';
+  $('#bankTools').hidden = !bank.length; $('#bankClear').textContent = 'Clear the whole bank';
+}
+$('#bankList').addEventListener('click', e => {
+  const b = e.target.closest('[data-bdel]'); if (!b) return;
+  const x = bank.find(y => y.id === b.dataset.bdel); if (!x) return;
+  if (!x.armed) { x.armed = true; drawBank(); setTimeout(() => { delete x.armed; drawBank(); }, 3000); return; }
+  bank = bank.filter(y => y !== x); bankGone.add(x.id); saveBank(); store('mvm.bankGone', [...bankGone]); drawBank();
+});
+$('#bankClear').addEventListener('click', e => {
+  if (e.target.textContent !== 'Tap again to clear everything') { e.target.textContent = 'Tap again to clear everything'; setTimeout(() => { if (e.target.isConnected) e.target.textContent = 'Clear the whole bank'; }, 3000); return; }
+  bank.forEach(x => bankGone.add(x.id)); bank = []; saveBank(); store('mvm.bankGone', [...bankGone]); drawBank();
+});
+function openSettings() { fields.forEach(f => $('#' + f).value = cfg[f]); fillModelSelect('mA'); fillModelSelect('mO'); fillVoiceSelects(); $('#autoSpeak').checked = !!cfg.autoSpeak; $('#voiceStatus').textContent = ''; $('#learn').checked = !!cfg.learn; counts(); $('#keyStatus').textContent = ''; $('#backupStatus').textContent = ''; drawBank(); dlg.showModal(); }
 $('#checkKeys').addEventListener('click', async () => {
   const st = $('#keyStatus'); st.textContent = 'Checking…';
   const tmp = {...cfg, kA:$('#kA').value.trim(), kO:$('#kO').value.trim(), mA:$('#mA').value.trim() || DEF.mA, mO:$('#mO').value.trim() || DEF.mO};
@@ -1475,7 +1544,7 @@ $('#forgetKeys').addEventListener('click', () => { $('#kA').value = ''; $('#kO')
 $('#backup').addEventListener('click', () => {
   const c = {...cfg}; if (!$('#withKeys').checked) { c.kA = ''; c.kO = ''; c.ghToken = ''; }
   saveCur(false);
-  const blob = new Blob([JSON.stringify({app:'mote-vs-minx', v:3, saved:new Date().toISOString(), cfg:c, chats, cur, boards}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({app:'mote-vs-minx', v:4, saved:new Date().toISOString(), cfg:c, chats, cur, boards, bank}, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = `mote-vs-minx-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
@@ -1492,6 +1561,7 @@ $('#restore').addEventListener('change', async e => {
     if (d.chats) { chats = {...chats, ...d.chats}; cur = d.cur && chats[d.cur] ? d.cur : cur; }
     else { const c = blank(); c.title = 'Restored chat'; c.log = d.log || []; c.mem = d.mem || ''; chats[c.id] = c; cur = c.id; }
     if (d.boards) { boards = mergeBoards(boards, d.boards); store('mvm.boards', boards); taskBadge(); }
+    if (d.bank) { bank = mergeBank(bank, d.bank); saveBank(); }
     log = chats[cur].log; mem = chats[cur].mem; shown = 0;
     store('mvm.cfg', cfg); store('mvm.chats', chats); store('mvm.cur', cur); $('#chatTitle').textContent = chats[cur].title;
     fields.forEach(k => $('#' + k).value = cfg[k]); $('#learn').checked = !!cfg.learn; counts(); render();
